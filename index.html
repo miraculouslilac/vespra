@@ -377,7 +377,10 @@ function ChatTab() {
       }
       const data=await res.json();
       const raw = data.output||data.text||"Получил ✅";
-const clean = raw.replace(/^=+/,'').trim();
+const clean = raw
+  .replace(/^=+/,'')
+  .trim()
+  .replace(/\[([^\]]+)\]\((https?:\/\/[^\)]+)\)/g, '<a href="$2" target="_blank" style="color:#00d4aa;text-decoration:underline;">$1</a>');
 setMsgs(p=>[...p,{role:"assistant",content:clean}]);
     } catch(e) {
       setMsgs(p=>[...p,{role:"assistant",content:"Упс, что-то пошло не так 🙏"}]);
