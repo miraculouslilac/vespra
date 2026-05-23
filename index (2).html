@@ -1,0 +1,631 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Vespra</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+<style>
+* { box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent; }
+html, body { height:100%; background:#050f0f; font-family:'DM Sans',sans-serif; color:#e8f5f5; overflow:hidden; }
+#root { height:100%; }
+::-webkit-scrollbar { width:0; height:0; }
+textarea { resize:none; outline:none; border:none; font-family:'DM Sans',sans-serif; }
+button, input { font-family:'DM Sans',sans-serif; outline:none; -webkit-appearance:none; }
+
+@keyframes fadeUp { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
+@keyframes fillBar { from{width:0} }
+@keyframes scoreCount { from{opacity:0} to{opacity:1} }
+@keyframes pulse1 { 0%,100%{transform:scale(1);opacity:.5} 50%{transform:scale(1.4);opacity:.15} }
+@keyframes pulse2 { 0%,100%{transform:scale(1);opacity:.4} 50%{transform:scale(1.7);opacity:.1} }
+@keyframes msgIn { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:translateY(0)} }
+@keyframes dotBounce { 0%,80%,100%{transform:scale(.6);opacity:.4} 40%{transform:scale(1);opacity:1} }
+
+.fade-up { animation:fadeUp .3s ease forwards; }
+.bar-fill { animation:fillBar 1s ease-out forwards; }
+.msg-in { animation:msgIn .25s ease forwards; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+
+const WEBHOOK = "https://juliachuma.app.n8n.cloud/webhook/health-hero-chat-001/chat";
+const SESSION_ID = "vespra-" + Math.random().toString(36).slice(2,9);
+
+const C = {
+  bg: "#050f0f", card: "#0a1a1a", card2: "#0d2020",
+  border: "#1a3333", border2: "#0d2828",
+  teal: "#00d4aa", teal2: "#00b899", teal3: "#009988",
+  purple: "#7c3aed", amber: "#e8a02a", amber2: "#b87800",
+  red: "#e84040", red2: "#aa1111",
+  text: "#e8f5f5", text2: "#c8e8e8", text3: "#8aaab0", text4: "#5a8a8a", text5: "#3a6060",
+  darkText: "#001a10",
+};
+
+const SYSTEMS = [
+  { key:"heart",   icon:"❤️", name:"Сердце",     score:85, color:C.teal,   grad:[C.teal3,C.teal] },
+  { key:"immune",  icon:"🛡️", name:"Иммунитет",  score:70, color:C.teal2,  grad:[C.teal3,C.teal2] },
+  { key:"hormones",icon:"⚗️", name:"Гормоны",    score:63, color:C.amber,  grad:[C.amber2,C.amber] },
+  { key:"liver",   icon:"🧬", name:"Печень",      score:73, color:C.teal,   grad:[C.teal3,C.teal] },
+  { key:"gut",     icon:"🌀", name:"ЖКТ",         score:68, color:C.amber,  grad:[C.amber2,C.amber] },
+  { key:"activity",icon:"🏃", name:"Активность",  score:82, color:C.teal,   grad:[C.teal3,C.teal] },
+  { key:"sleep",   icon:"😴", name:"Сон",         score:60, color:C.amber,  grad:[C.amber2,C.amber] },
+  { key:"kidneys", icon:"💧", name:"Почки",       score:74, color:C.teal,   grad:[C.teal3,C.teal] },
+  { key:"nervous", icon:"🧠", name:"Нервная",     score:65, color:C.red,    grad:[C.red2,C.red] },
+];
+
+const ORGAN_DETAILS = {
+  heart: {
+    markers:[
+      {icon:"💓",name:"Холестерин",val:"4.8 ммоль/л",status:"норма"},
+      {icon:"🩸",name:"ЛПНП",val:"2.9 ммоль/л",status:"норма"},
+      {icon:"📈",name:"Триглицериды",val:"1.6 ммоль/л",status:"внимание"},
+      {icon:"💗",name:"ЧСС в покое",val:"62 уд/мин",status:"норма"},
+    ],
+    insight:"Сердце работает хорошо. Триглицериды чуть повышены — сократи быстрые углеводы и добавь 2 кардио в неделю.",
+    doctor:"Записаться к кардиологу",
+    link:"https://docdoc.ru/doctor/kardiolog",
+  },
+  immune: {
+    markers:[
+      {icon:"🔬",name:"Лейкоциты",val:"5.8 тыс/мкл",status:"норма"},
+      {icon:"☀️",name:"Витамин D",val:"28 нг/мл",status:"внимание"},
+      {icon:"🧪",name:"СОЭ",val:"12 мм/ч",status:"норма"},
+    ],
+    insight:"Иммунитет в норме, но витамин D немного ниже оптимума. Добавь прогулки на солнце или добавку D3.",
+    doctor:"Записаться к терапевту",
+    link:"https://docdoc.ru/doctor/terapevt",
+  },
+  hormones: {
+    markers:[
+      {icon:"🦋",name:"ТТГ",val:"3.8 мМЕ/л",status:"внимание"},
+      {icon:"💉",name:"Инсулин",val:"9.2 мкМЕ/мл",status:"норма"},
+      {icon:"⚡",name:"Кортизол",val:"420 нмоль/л",status:"норма"},
+    ],
+    insight:"ТТГ у верхней границы нормы — стоит проверить щитовидку. Рекомендую сдать расширенный анализ.",
+    doctor:"Записаться к эндокринологу",
+    link:"https://docdoc.ru/doctor/endokrinolog",
+  },
+  liver: {
+    markers:[
+      {icon:"🧬",name:"АЛТ",val:"28 Ед/л",status:"норма"},
+      {icon:"🧬",name:"АСТ",val:"24 Ед/л",status:"норма"},
+      {icon:"💛",name:"Билирубин",val:"14 мкмоль/л",status:"норма"},
+    ],
+    insight:"Печень работает хорошо, все показатели в норме. Продолжай в том же духе!",
+    doctor:"Записаться к гепатологу",
+    link:"https://docdoc.ru/doctor/hirurg",
+  },
+  gut: {
+    markers:[
+      {icon:"🔬",name:"Пепсиноген I",val:"42 мкг/л",status:"норма"},
+      {icon:"🦠",name:"H.pylori",val:"Отрицательно",status:"норма"},
+      {icon:"📊",name:"Гастрин-17",val:"8.2 пмоль/л",status:"внимание"},
+    ],
+    insight:"Гастрин немного выше нормы. Возможно стоит пересмотреть питание и снизить острое и кофе.",
+    doctor:"Записаться к гастроэнтерологу",
+    link:"https://docdoc.ru/doctor/gastroenterolog",
+  },
+  activity: {
+    markers:[
+      {icon:"👟",name:"Шаги вчера",val:"6 200 шаг.",status:"внимание"},
+      {icon:"⚡",name:"Тренировки",val:"2 за неделю",status:"внимание"},
+      {icon:"🔥",name:"Калории",val:"320 ккал/день",status:"внимание"},
+    ],
+    insight:"Активность ниже нормы — стоит добавить хотя бы одну прогулку в день. Цель: 8 000 шагов.",
+    doctor:null,link:null,
+  },
+  sleep: {
+    markers:[
+      {icon:"🌙",name:"Длительность",val:"6.2 ч",status:"внимание"},
+      {icon:"📊",name:"Качество",val:"72%",status:"норма"},
+      {icon:"⏰",name:"Регулярность",val:"Низкая",status:"внимание"},
+    ],
+    insight:"Сон короткий — рекомендую ложиться на 30–60 минут раньше. Норма 7–9 часов.",
+    doctor:null,link:null,
+  },
+  kidneys: {
+    markers:[
+      {icon:"💧",name:"Креатинин",val:"82 мкмоль/л",status:"норма"},
+      {icon:"🔬",name:"Мочевина",val:"5.4 ммоль/л",status:"норма"},
+      {icon:"⚗️",name:"Мочевая к-та",val:"310 мкмоль/л",status:"норма"},
+    ],
+    insight:"Почки работают отлично, все показатели в норме. Пей достаточно воды — 1.5–2 л в день.",
+    doctor:null,link:null,
+  },
+  nervous: {
+    markers:[
+      {icon:"🧪",name:"B12",val:"180 пмоль/л",status:"внимание"},
+      {icon:"⚡",name:"Магний",val:"0.68 ммоль/л",status:"внимание"},
+      {icon:"😰",name:"Кортизол",val:"Норма",status:"норма"},
+    ],
+    insight:"B12 и магний ниже оптимума — это может влиять на усталость и концентрацию. Рекомендую добавки.",
+    doctor:"Записаться к неврологу",
+    link:"https://docdoc.ru/doctor/nevrolog",
+  },
+};
+
+const TOTAL_SCORE = 72;
+
+function statusColor(s) {
+  if (s==="норма") return C.teal;
+  if (s==="внимание") return C.amber;
+  return C.red;
+}
+
+function ScoreRing({score}) {
+  const [disp, setDisp] = React.useState(0);
+  React.useEffect(()=>{
+    let start=null, dur=1200;
+    const step=(ts)=>{
+      if(!start) start=ts;
+      const p=Math.min((ts-start)/dur,1);
+      const e=1-Math.pow(1-p,3);
+      setDisp(Math.round(e*score));
+      if(p<1) requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
+  },[score]);
+
+  const r=46, circ=2*Math.PI*r;
+  const fill=(score/100)*circ;
+  const offset=circ-fill;
+
+  return (
+    <div style={{display:"flex",flexDirection:"column",alignItems:"center",padding:"18px 0 10px"}}>
+      <svg width="120" height="120" viewBox="0 0 120 120">
+        <circle cx="60" cy="60" r={r} fill="none" stroke={C.card2} strokeWidth="9"/>
+        <circle cx="60" cy="60" r={r} fill="none" stroke={C.teal} strokeWidth="9"
+          strokeDasharray={`${fill} ${circ-fill}`} strokeLinecap="round"
+          transform="rotate(-90 60 60)" opacity="0.95"/>
+        <text x="60" y="60" textAnchor="middle" dominantBaseline="central"
+          fontSize="34" fontWeight="700" fill={C.teal} fontFamily="DM Sans,sans-serif">{disp}</text>
+      </svg>
+      <div style={{fontSize:12,fontWeight:600,color:C.teal,marginTop:4,letterSpacing:0.2}}>
+        {score>=80?"Отличный уровень":score>=65?"Хороший уровень":score>=50?"Средний уровень":"Низкий уровень"}
+      </div>
+    </div>
+  );
+}
+
+function SystemRow({sys, onClick, delay}) {
+  return (
+    <div onClick={()=>onClick(sys)} style={{cursor:"pointer",marginBottom:8}} className="fade-up"
+      onMouseEnter={e=>e.currentTarget.style.opacity="0.7"}
+      onMouseLeave={e=>e.currentTarget.style.opacity="1"}
+    >
+      <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
+        <div style={{fontSize:11,color:C.text2,display:"flex",alignItems:"center",gap:5}}>
+          <span>{sys.icon}</span> {sys.name}
+        </div>
+        <div style={{fontSize:11,fontWeight:700,color:sys.color}}>{sys.score}</div>
+      </div>
+      <div style={{background:C.card2,borderRadius:4,height:5,overflow:"hidden"}}>
+        <div className="bar-fill" style={{
+          width:`${sys.score}%`,height:5,borderRadius:4,
+          background:`linear-gradient(90deg,${sys.grad[0]},${sys.grad[1]})`,
+          animationDelay:`${delay}s`
+        }}/>
+      </div>
+    </div>
+  );
+}
+
+function OrganDetail({sys, onBack, healthData}) {
+  const d = ORGAN_DETAILS[sys.key] || {};
+  // Если есть реальные данные от агента — используем markers из них
+  const agentSys = healthData?.systems?.find(s => s.key === sys.key);
+  const markers = agentSys?.markers || d.markers || [];
+  const insight = agentSys?.insight || d.insight || "";
+  return (
+    <div style={{flex:1,overflowY:"auto",paddingBottom:80}} className="fade-up">
+      {/* Back */}
+      <div style={{padding:"10px 16px 0",display:"flex",alignItems:"center",gap:8}}>
+        <button onClick={onBack} style={{
+          background:"none",border:"none",color:C.text4,fontSize:14,cursor:"pointer",
+          display:"flex",alignItems:"center",gap:4,padding:"4px 0",
+        }}>← Назад</button>
+      </div>
+
+      <div style={{padding:"10px 16px 0"}}>
+        {/* Score card */}
+        <div style={{background:C.card2,borderRadius:18,padding:"14px 16px",marginBottom:12,border:`0.5px solid ${C.border}`}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:10}}>
+            <div>
+              <div style={{fontSize:16,fontWeight:700,color:C.text,marginBottom:2}}>{sys.icon} {sys.name}</div>
+              <div style={{fontSize:11,color:sys.color,fontWeight:600}}>
+                {sys.score>=80?"Отличный":sys.score>=65?"Хороший":sys.score>=50?"Средний":"Низкий"} уровень
+              </div>
+            </div>
+            <div style={{fontSize:36,fontWeight:700,color:sys.color,lineHeight:1}}>{sys.score}</div>
+          </div>
+          <div style={{background:C.card,borderRadius:5,height:6,overflow:"hidden"}}>
+            <div style={{width:`${sys.score}%`,height:6,borderRadius:5,background:`linear-gradient(90deg,${sys.grad[0]},${sys.grad[1]})`}}/>
+          </div>
+        </div>
+
+        {/* Markers */}
+        <div style={{fontSize:10,color:C.text4,letterSpacing:"0.6px",fontWeight:600,marginBottom:8}}>ПОКАЗАТЕЛИ</div>
+        <div style={{display:"flex",flexDirection:"column",gap:6,marginBottom:12}}>
+          {markers.map((m,i)=>(
+            <div key={i} style={{
+              display:"flex",alignItems:"center",gap:10,
+              background:C.card2,borderRadius:12,padding:"9px 12px",
+              border:`0.5px solid ${m.status==="внимание"?C.amber+"44":m.status==="отклонение"?C.red+"44":C.border}`,
+            }}>
+              <div style={{fontSize:18,flexShrink:0}}>{m.icon}</div>
+              <div style={{flex:1}}>
+                <div style={{fontSize:10,color:C.text3}}>{m.name}</div>
+                <div style={{fontSize:12,fontWeight:600,color:C.text2,marginTop:1}}>{m.val}</div>
+              </div>
+              <div style={{
+                fontSize:9,padding:"3px 7px",borderRadius:6,fontWeight:700,
+                background:`${statusColor(m.status)}18`,color:statusColor(m.status),
+                flexShrink:0,
+              }}>{m.status}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* Insight */}
+        <div style={{background:"#0a1515",borderRadius:14,padding:"12px 14px",borderLeft:`2px solid ${C.teal}`,marginBottom:12}}>
+          <div style={{fontSize:10,color:C.teal,fontWeight:700,marginBottom:5}}>💡 Инсайт</div>
+          <div style={{fontSize:12,color:C.text3,lineHeight:1.6}}>{insight}</div>
+        </div>
+
+        {/* Action */}
+        {(agentSys?.doctor || d.doctor) && (
+          <a href={agentSys?.link || d.link} target="_blank" rel="noreferrer" style={{
+            display:"block",textDecoration:"none",
+            background:`${C.teal}15`,border:`0.5px solid ${C.teal}44`,
+            borderRadius:12,padding:"11px 16px",
+            textAlign:"center",fontSize:13,color:C.teal,fontWeight:600,
+          }}>👉 {agentSys?.doctor || d.doctor}</a>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function HealthTab({healthData, onRequest}) {
+  const [selected, setSelected] = React.useState(null);
+  const [loading, setLoading] = React.useState(false);
+
+  const requestScoring = async() => {
+    setLoading(true);
+    try {
+      const res = await fetch(WEBHOOK, {method:"POST", headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({action:"sendMessage", sessionId:SESSION_ID, chatInput:"скоринг здоровья"})});
+      const data = await res.json();
+      if (data.scoringJson && onRequest) onRequest(data.scoringJson);
+    } catch(e) {}
+    setLoading(false);
+  };
+
+  // Используем данные от агента или захардкоженные как fallback
+  const systems = healthData?.systems ? healthData.systems.map(s => ({
+    ...s,
+    icon: {activity:"🏃",heart:"❤️",immune:"🛡️",hormones:"⚗️",liver:"🧬",gut:"🌀",sleep:"😴",kidneys:"💧",nervous:"🧠"}[s.key] || "💊",
+    color: s.color || (s.score >= 80 ? C.teal : s.score >= 60 ? C.amber : C.red),
+    grad: s.score >= 80 ? [C.teal3,C.teal] : s.score >= 60 ? [C.amber2,C.amber] : [C.red2,C.red],
+  })) : SYSTEMS;
+  const totalScore = healthData?.total ?? TOTAL_SCORE;
+
+  if (selected) return <OrganDetail sys={selected} onBack={()=>setSelected(null)} healthData={healthData}/>;
+  return (
+    <div style={{flex:1,overflowY:"auto",paddingBottom:80}}>
+      <ScoreRing score={totalScore}/>
+      <div style={{padding:"0 16px 16px"}}>
+        {!healthData && (
+          <div style={{marginBottom:12,padding:"10px 14px",background:C.card2,borderRadius:12,border:`0.5px solid ${C.border}`,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+            <div style={{fontSize:12,color:C.text3}}>Показаны демо-данные</div>
+            <button onClick={requestScoring} disabled={loading} style={{
+              background:`${C.teal}20`,border:`0.5px solid ${C.teal}44`,borderRadius:8,
+              padding:"4px 10px",fontSize:11,color:C.teal,cursor:"pointer"
+            }}>{loading?"⏳":"🔄 Обновить"}</button>
+          </div>
+        )}
+        {healthData && (
+          <div style={{marginBottom:12,padding:"8px 14px",background:`${C.teal}10`,borderRadius:12,border:`0.5px solid ${C.teal}33`,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+            <div style={{fontSize:11,color:C.teal}}>✓ Реальные данные</div>
+            <button onClick={requestScoring} disabled={loading} style={{
+              background:"none",border:"none",fontSize:11,color:C.text4,cursor:"pointer"
+            }}>{loading?"⏳":"🔄"}</button>
+          </div>
+        )}
+        <div style={{fontSize:10,color:C.text4,letterSpacing:"0.6px",fontWeight:600,marginBottom:10}}>СИСТЕМЫ ОРГАНОВ</div>
+        {systems.map((s,i)=>(
+          <SystemRow key={s.key} sys={s} onClick={setSelected} delay={i*0.05}/>
+        ))}
+        <div style={{fontSize:10,color:C.text5,textAlign:"center",marginTop:6}}>Нажми на систему для деталей →</div>
+      </div>
+    </div>
+  );
+}
+
+function ChatBubble({msg}) {
+  const isUser = msg.role==="user";
+  return (
+    <div className="msg-in" style={{display:"flex",justifyContent:isUser?"flex-end":"flex-start",marginBottom:10}}>
+      {!isUser && (
+        <div style={{
+          width:28,height:28,borderRadius:"50%",flexShrink:0,marginRight:8,alignSelf:"flex-end",
+          background:`linear-gradient(135deg,${C.teal3},${C.teal})`,
+          display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,
+        }}>V</div>
+      )}
+      <div style={{
+        maxWidth:"78%",padding:"10px 14px",
+        borderRadius:isUser?"18px 18px 4px 18px":"18px 18px 18px 4px",
+        background:isUser?`linear-gradient(135deg,${C.teal3},${C.teal})`:C.card2,
+        color:isUser?C.darkText:C.text2,
+        fontSize:13.5,lineHeight:1.55,
+        border:isUser?"none":`0.5px solid ${C.border}`,
+        whiteSpace:"pre-wrap",wordBreak:"break-word",
+      }}
+        dangerouslySetInnerHTML={{__html:msg.content.replace(/<a /g,'<a style="color:inherit;text-decoration:underline;" ')}}
+      />
+    </div>
+  );
+}
+
+function TypingDots() {
+  return (
+    <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}>
+      <div style={{width:28,height:28,borderRadius:"50%",background:`linear-gradient(135deg,${C.teal3},${C.teal})`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,flexShrink:0}}>V</div>
+      <div style={{background:C.card2,border:`0.5px solid ${C.border}`,borderRadius:"18px 18px 18px 4px",padding:"10px 14px",display:"flex",gap:5}}>
+        {[0,1,2].map(i=>(
+          <div key={i} style={{width:7,height:7,borderRadius:"50%",background:C.teal,animation:`dotBounce 1.4s ease-in-out ${i*0.2}s infinite`}}/>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ChatTab({onHealthData}) {
+  const [msgs, setMsgs] = React.useState([
+    {role:"assistant",content:"Привет! Я Vespra 👋\nТвой персональный агент здоровья. Расскажи как себя чувствуешь, или скинь анализы, фото еды, тренировки — я всё проанализирую."}
+  ]);
+  const [input, setInput] = React.useState("");
+  const [loading, setLoading] = React.useState(false);
+  const [file, setFile] = React.useState(null);
+  const endRef = React.useRef(null);
+  const fileRef = React.useRef(null);
+  const textRef = React.useRef(null);
+
+  React.useEffect(()=>{ endRef.current?.scrollIntoView({behavior:"smooth"}); },[msgs,loading]);
+
+  const send = async() => {
+    const txt = input.trim();
+    if (!txt && !file) return;
+    setMsgs(p=>[...p,{role:"user",content:file?`📎 ${file.name}${txt?" — "+txt:""}`:txt}]);
+    setLoading(true);
+    const savedTxt=txt, savedFile=file;
+    setInput(""); setFile(null);
+    try {
+      let res;
+      if (savedFile) {
+        const fd=new FormData();
+        fd.append("action","sendMessage");
+        fd.append("sessionId",SESSION_ID);
+        fd.append("chatInput",savedTxt||"Проанализируй этот файл");
+        fd.append("files",savedFile);
+        res=await fetch(WEBHOOK,{method:"POST",body:fd});
+      } else {
+        res=await fetch(WEBHOOK,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"sendMessage",sessionId:SESSION_ID,chatInput:savedTxt})});
+      }
+      const data=await res.json();
+      const raw = data.output||data.text||"Получил ✅";
+      const clean = raw
+        .replace(/^=+/,'')
+        .trim()
+        .replace(/\[([^\]]+)\]\((https?:\/\/[^\)]+)\)/g, '<a href="$2" target="_blank" style="color:#00d4aa;text-decoration:underline;">$1</a>');
+      setMsgs(p=>[...p,{role:"assistant",content:clean}]);
+      // Если агент вернул скоринг — обновляем вкладку Здоровье
+      if (data.scoringJson && onHealthData) {
+        onHealthData(data.scoringJson);
+      }
+    } catch(e) {
+      setMsgs(p=>[...p,{role:"assistant",content:"Упс, что-то пошло не так 🙏"}]);
+    }
+    setLoading(false);
+  };
+
+  const onKey=(e)=>{ if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();send();} };
+
+  const autoResize=(e)=>{
+    e.target.style.height="auto";
+    e.target.style.height=Math.min(e.target.scrollHeight,100)+"px";
+  };
+
+  return (
+    <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
+      {/* Messages */}
+      <div style={{flex:1,overflowY:"auto",padding:"14px 14px 8px"}}>
+        {msgs.map((m,i)=><ChatBubble key={i} msg={m}/>)}
+        {loading && <TypingDots/>}
+        <div ref={endRef}/>
+      </div>
+
+      {/* File preview */}
+      {file && (
+        <div style={{margin:"0 14px 6px",padding:"8px 12px",background:C.card2,borderRadius:10,fontSize:12,color:C.teal,display:"flex",alignItems:"center",justifyContent:"space-between",border:`0.5px solid ${C.border}`}}>
+          <span>📎 {file.name}</span>
+          <button onClick={()=>setFile(null)} style={{background:"none",border:"none",color:C.text4,fontSize:18,cursor:"pointer",lineHeight:1}}>×</button>
+        </div>
+      )}
+
+      {/* Input bar */}
+      <div style={{padding:"8px 14px 16px",borderTop:`0.5px solid ${C.border}`,display:"flex",alignItems:"flex-end",gap:8,background:C.card}}>
+        <button onClick={()=>fileRef.current?.click()} style={{
+          width:38,height:38,borderRadius:"50%",border:`0.5px solid ${C.border}`,
+          background:"transparent",color:C.text4,fontSize:18,cursor:"pointer",
+          display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,
+        }}>📎</button>
+        <input type="file" ref={fileRef} onChange={e=>setFile(e.target.files[0])} style={{display:"none"}} accept="image/*,.pdf"/>
+
+        <div style={{flex:1,background:C.card2,borderRadius:20,border:`0.5px solid ${C.border}`,padding:"10px 14px",display:"flex",alignItems:"flex-end"}}>
+          <textarea
+            ref={textRef}
+            value={input}
+            onChange={e=>{setInput(e.target.value);autoResize(e);}}
+            onKeyDown={onKey}
+            placeholder="Напиши или скинь файл..."
+            rows={1}
+            style={{flex:1,fontSize:14,color:C.text,background:"transparent",maxHeight:100,overflowY:"auto",lineHeight:1.4}}
+          />
+        </div>
+
+        <button onClick={send} disabled={loading||(!input.trim()&&!file)} style={{
+          width:38,height:38,borderRadius:"50%",border:"none",flexShrink:0,
+          background:(input.trim()||file)&&!loading?`linear-gradient(135deg,${C.teal3},${C.teal})`:`${C.border}`,
+          color:(input.trim()||file)&&!loading?C.darkText:C.text5,
+          cursor:(input.trim()||file)&&!loading?"pointer":"not-allowed",
+          display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,
+          transition:"all .2s",
+        }}>➤</button>
+      </div>
+    </div>
+  );
+}
+
+function ProfileTab() {
+  const fields=[
+    {icon:"🎂",label:"Возраст",val:"—"},
+    {icon:"📏",label:"Рост",val:"—"},
+    {icon:"⚖️",label:"Вес",val:"—"},
+    {icon:"🏃",label:"Уровень активности",val:"—"},
+    {icon:"🔥",label:"Норма калорий",val:"—"},
+    {icon:"⌚",label:"Носимое устройство",val:"—"},
+  ];
+  return (
+    <div style={{flex:1,overflowY:"auto",padding:"16px 16px 80px"}} className="fade-up">
+      {/* Avatar */}
+      <div style={{
+        background:`linear-gradient(135deg,${C.teal3},${C.purple})`,
+        borderRadius:20,padding:24,marginBottom:16,textAlign:"center",
+      }}>
+        <div style={{
+          width:64,height:64,borderRadius:"50%",
+          background:"rgba(0,0,0,0.2)",margin:"0 auto 10px",
+          display:"flex",alignItems:"center",justifyContent:"center",fontSize:28,
+        }}>👤</div>
+        <div style={{fontSize:18,fontWeight:700,color:"#fff"}}>Пользователь</div>
+        <div style={{fontSize:11,color:"rgba(255,255,255,0.7)",marginTop:3}}>Участник Vespra</div>
+      </div>
+
+      {/* Fields */}
+      {fields.map(f=>(
+        <div key={f.label} style={{
+          display:"flex",alignItems:"center",padding:"13px 0",
+          borderBottom:`0.5px solid ${C.card2}`,
+        }}>
+          <div style={{fontSize:18,width:32,flexShrink:0}}>{f.icon}</div>
+          <div style={{flex:1,fontSize:13,color:C.text3,fontWeight:500}}>{f.label}</div>
+          <div style={{fontSize:13,color:C.text4}}>{f.val}</div>
+        </div>
+      ))}
+
+      <div style={{
+        marginTop:16,background:C.card2,borderRadius:14,
+        padding:"12px 14px",border:`0.5px solid ${C.border}`,
+        fontSize:12,color:C.text3,lineHeight:1.6,
+      }}>
+        💡 Напиши "привет" в чате — Vespra задаст несколько вопросов и заполнит профиль автоматически.
+      </div>
+    </div>
+  );
+}
+
+function App() {
+  const [tab, setTab] = React.useState("chat");
+  const [healthData, setHealthData] = React.useState(null);
+
+  const todayStr = new Date().toLocaleDateString("ru-RU",{weekday:"long",day:"numeric",month:"long"});
+
+  const navItems=[
+    {id:"chat",icon:"💬",label:"Чат"},
+    {id:"health",icon:"🫀",label:"Здоровье"},
+    {id:"profile",icon:"👤",label:"Профиль"},
+  ];
+
+  return (
+    <div style={{
+      height:"100%",display:"flex",flexDirection:"column",
+      background:C.card,maxWidth:430,margin:"0 auto",
+      position:"relative",
+    }}>
+      {/* Header */}
+      <div style={{
+        padding:"48px 18px 12px",
+        borderBottom:`0.5px solid ${C.border}`,
+        flexShrink:0,
+        background:C.card,
+      }}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+          <div>
+            <div style={{fontSize:11,color:C.text4,letterSpacing:0.4,textTransform:"capitalize",marginBottom:2}}>{todayStr}</div>
+            <div style={{fontSize:20,fontWeight:700,color:C.teal,letterSpacing:-0.5}}>
+              Vesp<span style={{color:C.purple}}>ra</span>
+              <span style={{
+                display:"inline-block",width:7,height:7,borderRadius:"50%",
+                background:C.teal,marginLeft:6,verticalAlign:"middle",
+                boxShadow:`0 0 0 2px ${C.teal}33`,
+              }}/>
+            </div>
+          </div>
+          <div style={{
+            width:36,height:36,borderRadius:"50%",
+            background:`linear-gradient(135deg,${C.teal3},${C.purple})`,
+            display:"flex",alignItems:"center",justifyContent:"center",
+            fontSize:16,
+          }}>🌿</div>
+        </div>
+      </div>
+
+      {/* Content */}
+      <div style={{flex:1,overflow:"hidden",display:"flex",flexDirection:"column"}}>
+        {tab==="chat" && <ChatTab onHealthData={setHealthData}/>}
+        {tab==="health" && <HealthTab healthData={healthData} onRequest={setHealthData}/>}
+        {tab==="profile" && <ProfileTab/>}
+      </div>
+
+      {/* Bottom nav */}
+      <div style={{
+        display:"flex",
+        background:"rgba(10,26,26,0.97)",
+        backdropFilter:"blur(20px)",
+        borderTop:`0.5px solid ${C.border}`,
+        padding:"8px 0 22px",
+        flexShrink:0,
+      }}>
+        {navItems.map(it=>(
+          <button key={it.id} onClick={()=>setTab(it.id)} style={{
+            flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:3,
+            padding:"6px 0",background:"none",border:"none",cursor:"pointer",
+          }}>
+            <div style={{
+              fontSize:22,transition:"all .2s",
+              filter:tab===it.id?"none":"grayscale(1) opacity(.35)",
+              transform:tab===it.id?"scale(1.1)":"scale(1)",
+            }}>{it.icon}</div>
+            <div style={{
+              fontSize:10,fontWeight:tab===it.id?600:400,
+              color:tab===it.id?C.teal:C.text4,
+              transition:"all .2s",
+            }}>{it.label}</div>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+</script>
+</body>
+</html>
