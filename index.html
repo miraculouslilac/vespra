@@ -215,8 +215,11 @@ function SystemRow({sys, onClick, delay}) {
   );
 }
 
-function OrganDetail({sys, onBack}) {
-  const d = ORGAN_DETAILS[sys.key];
+function OrganDetail({sys, onBack, healthData}) {
+  const d = ORGAN_DETAILS[sys.key] || {};
+  const agentSys = healthData?.systems?.find(s => s.key === sys.key);
+  const markers = agentSys?.markers || d.markers || [];
+  const insight = agentSys?.insight || d.insight || "";
   return (
     <div style={{flex:1,overflowY:"auto",paddingBottom:80}} className="fade-up">
       {/* Back */}
@@ -247,7 +250,7 @@ function OrganDetail({sys, onBack}) {
         {/* Markers */}
         <div style={{fontSize:10,color:C.text4,letterSpacing:"0.6px",fontWeight:600,marginBottom:8}}>ПОКАЗАТЕЛИ</div>
         <div style={{display:"flex",flexDirection:"column",gap:6,marginBottom:12}}>
-          {d.markers.map((m,i)=>(
+          {markers.map((m,i)=>(
             <div key={i} style={{
               display:"flex",alignItems:"center",gap:10,
               background:C.card2,borderRadius:12,padding:"9px 12px",
@@ -270,32 +273,66 @@ function OrganDetail({sys, onBack}) {
         {/* Insight */}
         <div style={{background:"#0a1515",borderRadius:14,padding:"12px 14px",borderLeft:`2px solid ${C.teal}`,marginBottom:12}}>
           <div style={{fontSize:10,color:C.teal,fontWeight:700,marginBottom:5}}>💡 Инсайт</div>
-          <div style={{fontSize:12,color:C.text3,lineHeight:1.6}}>{d.insight}</div>
+          <div style={{fontSize:12,color:C.text3,lineHeight:1.6}}>{insight}</div>
         </div>
 
         {/* Action */}
-        {d.doctor && (
-          <a href={d.link} target="_blank" rel="noreferrer" style={{
-            display:"block",textDecoration:"none",
-            background:`${C.teal}15`,border:`0.5px solid ${C.teal}44`,
-            borderRadius:12,padding:"11px 16px",
-            textAlign:"center",fontSize:13,color:C.teal,fontWeight:600,
-          }}>👉 {d.doctor}</a>
+{(agentSys?.doctor || d.doctor) && (
+  <a href={agentSys?.link || d.link} ...>👉 {agentSys?.doctor || d.doctor}</a>
+)}
         )}
       </div>
     </div>
   );
 }
 
-function HealthTab() {
+function HealthTab({healthData, onRequest}) {
   const [selected, setSelected] = React.useState(null);
-  if (selected) return <OrganDetail sys={selected} onBack={()=>setSelected(null)}/>;
+  const [loading, setLoading] = React.useState(false);
+
+  const requestScoring = async() => {
+    setLoading(true);
+    try {
+      const res = await fetch(WEBHOOK, {method:"POST", headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({action:"sendMessage", sessionId:SESSION_ID, chatInput:"скоринг здоровья"})});
+      const data = await res.json();
+      if (data.scoringJson && onRequest) onRequest(data.scoringJson);
+    } catch(e) {}
+    setLoading(false);
+  };
+
+  const systems = healthData?.systems ? healthData.systems.map(s => ({
+    ...s,
+    icon: {activity:"🏃",heart:"❤️",immune:"🛡️",hormones:"⚗️",liver:"🧬",gut:"🌀",sleep:"😴",kidneys:"💧",nervous:"🧠"}[s.key] || "💊",
+    color: s.color || (s.score >= 80 ? C.teal : s.score >= 60 ? C.amber : C.red),
+    grad: s.score >= 80 ? [C.teal3,C.teal] : s.score >= 60 ? [C.amber2,C.amber] : [C.red2,C.red],
+  })) : SYSTEMS;
+  const totalScore = healthData?.total ?? TOTAL_SCORE;
+
+  if (selected) return <OrganDetail sys={selected} onBack={()=>setSelected(null)} healthData={healthData}/>;
   return (
     <div style={{flex:1,overflowY:"auto",paddingBottom:80}}>
-      <ScoreRing score={TOTAL_SCORE}/>
+      <ScoreRing score={totalScore}/>
       <div style={{padding:"0 16px 16px"}}>
+        {!healthData && (
+          <div style={{marginBottom:12,padding:"10px 14px",background:C.card2,borderRadius:12,border:`0.5px solid ${C.border}`,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+            <div style={{fontSize:12,color:C.text3}}>Показаны демо-данные</div>
+            <button onClick={requestScoring} disabled={loading} style={{
+              background:`${C.teal}20`,border:`0.5px solid ${C.teal}44`,borderRadius:8,
+              padding:"4px 10px",fontSize:11,color:C.teal,cursor:"pointer"
+            }}>{loading?"⏳":"🔄 Обновить"}</button>
+          </div>
+        )}
+        {healthData && (
+          <div style={{marginBottom:12,padding:"8px 14px",background:`${C.teal}10`,borderRadius:12,border:`0.5px solid ${C.teal}33`,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+            <div style={{fontSize:11,color:C.teal}}>✓ Реальные данные</div>
+            <button onClick={requestScoring} disabled={loading} style={{
+              background:"none",border:"none",fontSize:11,color:C.text4,cursor:"pointer"
+            }}>{loading?"⏳":"🔄"}</button>
+          </div>
+        )}
         <div style={{fontSize:10,color:C.text4,letterSpacing:"0.6px",fontWeight:600,marginBottom:10}}>СИСТЕМЫ ОРГАНОВ</div>
-        {SYSTEMS.map((s,i)=>(
+        {systems.map((s,i)=>(
           <SystemRow key={s.key} sys={s} onClick={setSelected} delay={i*0.05}/>
         ))}
         <div style={{fontSize:10,color:C.text5,textAlign:"center",marginTop:6}}>Нажми на систему для деталей →</div>
@@ -343,7 +380,7 @@ function TypingDots() {
   );
 }
 
-function ChatTab() {
+function ChatTab({onHealthData}) {
   const [msgs, setMsgs] = React.useState([
     {role:"assistant",content:"Привет! Я Vespra 👋\nТвой персональный агент здоровья. Расскажи как себя чувствуешь, или скинь анализы, фото еды, тренировки — я всё проанализирую."}
   ]);
@@ -382,6 +419,9 @@ const clean = raw
   .trim()
   .replace(/\[([^\]]+)\]\((https?:\/\/[^\)]+)\)/g, '<a href="$2" target="_blank" style="color:#00d4aa;text-decoration:underline;">$1</a>');
 setMsgs(p=>[...p,{role:"assistant",content:clean}]);
+      if (data.scoringJson && onHealthData) {
+  onHealthData(data.scoringJson);
+}
     } catch(e) {
       setMsgs(p=>[...p,{role:"assistant",content:"Упс, что-то пошло не так 🙏"}]);
     }
@@ -496,6 +536,7 @@ function ProfileTab() {
 
 function App() {
   const [tab, setTab] = React.useState("chat");
+  const [healthData, setHealthData] = React.useState(null);
 
   const todayStr = new Date().toLocaleDateString("ru-RU",{weekday:"long",day:"numeric",month:"long"});
 
@@ -541,8 +582,8 @@ function App() {
 
       {/* Content */}
       <div style={{flex:1,overflow:"hidden",display:"flex",flexDirection:"column"}}>
-        {tab==="chat" && <ChatTab/>}
-        {tab==="health" && <HealthTab/>}
+        {tab==="chat" && <ChatTab onHealthData={setHealthData}/>}
+{tab==="health" && <HealthTab healthData={healthData} onRequest={setHealthData}/>}
         {tab==="profile" && <ProfileTab/>}
       </div>
 
