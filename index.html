@@ -310,8 +310,8 @@ function HealthTab({healthData, onRequest}) {
     icon: {activity:"🏃",heart:"❤️",immune:"🛡️",hormones:"⚗️",liver:"🧬",gut:"🌀",sleep:"😴",kidneys:"💧",nervous:"🧠"}[s.key] || "💊",
     color: s.color || (s.score >= 80 ? C.teal : s.score >= 60 ? C.amber : C.red),
     grad: s.score >= 80 ? [C.teal3,C.teal] : s.score >= 60 ? [C.amber2,C.amber] : [C.red2,C.red],
-  })) : SYSTEMS;
-  const totalScore = healthData?.total ?? TOTAL_SCORE;
+  })) : [];
+  const totalScore = healthData?.total ?? 0;
 
   if (selected) return <OrganDetail sys={selected} onBack={()=>setSelected(null)} healthData={healthData}/>;
   return (
@@ -319,13 +319,15 @@ function HealthTab({healthData, onRequest}) {
       <ScoreRing score={totalScore}/>
       <div style={{padding:"0 16px 16px"}}>
         {!healthData && (
-          <div style={{marginBottom:12,padding:"10px 14px",background:C.card2,borderRadius:12,border:`0.5px solid ${C.border}`,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-            <div style={{fontSize:12,color:C.text3}}>Показаны демо-данные</div>
-            <button onClick={requestScoring} disabled={loading} style={{
-              background:`${C.teal}20`,border:`0.5px solid ${C.teal}44`,borderRadius:8,
-              padding:"4px 10px",fontSize:11,color:C.teal,cursor:"pointer"
-            }}>{loading?"⏳":"🔄 Обновить"}</button>
-          </div>
+  <div style={{textAlign:"center",padding:"40px 16px"}}>
+    <div style={{fontSize:32,marginBottom:12}}>🫀</div>
+    <div style={{fontSize:14,color:C.text3,marginBottom:16}}>Данных пока нет</div>
+    <button onClick={requestScoring} disabled={loading} style={{
+      background:`${C.teal}20`,border:`0.5px solid ${C.teal}44`,borderRadius:10,
+      padding:"10px 20px",fontSize:13,color:C.teal,cursor:"pointer"
+    }}>{loading?"⏳ Загружаю...":"Загрузить мои данные"}</button>
+  </div>
+)}
         )}
         {healthData && (
           <div style={{marginBottom:12,padding:"8px 14px",background:`${C.teal}10`,borderRadius:12,border:`0.5px solid ${C.teal}33`,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
