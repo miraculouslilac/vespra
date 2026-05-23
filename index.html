@@ -376,7 +376,9 @@ function ChatTab() {
         res=await fetch(WEBHOOK,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"sendMessage",sessionId:SESSION_ID,chatInput:savedTxt})});
       }
       const data=await res.json();
-      setMsgs(p=>[...p,{role:"assistant",content:data.output||data.text||"Получил ✅"}]);
+      const raw = data.output||data.text||"Получил ✅";
+const clean = raw.replace(/^=+/,'').trim();
+setMsgs(p=>[...p,{role:"assistant",content:clean}]);
     } catch(e) {
       setMsgs(p=>[...p,{role:"assistant",content:"Упс, что-то пошло не так 🙏"}]);
     }
