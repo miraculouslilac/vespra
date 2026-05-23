@@ -584,9 +584,15 @@ function App() {
 
       {/* Content */}
       <div style={{flex:1,overflow:"hidden",display:"flex",flexDirection:"column"}}>
-        {tab==="chat" && <ChatTab onHealthData={setHealthData}/>}
-        {tab==="health" && <HealthTab healthData={healthData} onRequest={setHealthData}/>}
-        {tab==="profile" && <ProfileTab/>}
+        <div style={{display:tab==="chat"?"flex":"none",flex:1,flexDirection:"column",overflow:"hidden"}}>
+  <ChatTab onHealthData={setHealthData}/>
+</div>
+<div style={{display:tab==="health"?"flex":"none",flex:1,flexDirection:"column",overflow:"hidden"}}>
+  <HealthTab healthData={healthData} onRequest={setHealthData}/>
+</div>
+<div style={{display:tab==="profile"?"flex":"none",flex:1,flexDirection:"column",overflow:"hidden"}}>
+  <ProfileTab/>
+</div>
       </div>
 
       {/* Bottom nav */}
