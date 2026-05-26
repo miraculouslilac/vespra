@@ -36,6 +36,7 @@ button, input { font-family:'DM Sans',sans-serif; outline:none; -webkit-appearan
 const WEBHOOK = "https://juliachuma.app.n8n.cloud/webhook/645aaa39-0971-4b0f-b829-c448c7a684f9/chat";
 const STORAGE_KEY = "vespra_chat_history";
 const SESSION_KEY = "vespra_session_id";
+const SCORING_KEY = "vespra_scoring_data";
 const SESSION_ID = (() => {
   let id = localStorage.getItem(SESSION_KEY);
   if (!id) { id = "vespra-" + Math.random().toString(36).slice(2,9); localStorage.setItem(SESSION_KEY, id); }
@@ -50,118 +51,87 @@ const C = {
   red: "#e84040", red2: "#aa1111",
   text: "#e8f5f5", text2: "#c8e8e8", text3: "#8aaab0", text4: "#5a8a8a", text5: "#3a6060",
   darkText: "#001a10",
+  green: "#1D9E75", yellow: "#BA7517", redScore: "#E53935", gray: "#888888",
 };
 
-const SYSTEMS = [
-  { key:"immunity", icon:"🛡️", name:"Иммунитет", score:58, color:C.amber, grad:[C.amber2,C.amber] },
-  { key:"hormones", icon:"⚗️", name:"Гормоны", score:56, color:C.amber, grad:[C.amber2,C.amber] },
-  { key:"heart", icon:"❤️", name:"Сердце", score:85, color:C.teal, grad:[C.teal3,C.teal] },
-  { key:"liver", icon:"🧬", name:"Печень", score:83, color:C.teal, grad:[C.teal3,C.teal] },
-  { key:"kidneys", icon:"💧", name:"Почки", score:null, color:C.text4, grad:[C.text4,C.text4] },
+const SYSTEM_ICONS = {
+  liver: "⚡", kidneys: "💧", heart: "❤️", blood: "🛡️",
+  thyroid: "⚛️", hormones: "🧪", metabolism: "🔥",
+  vitamins: "☀️", proteins: "🧬",
+};
+
+const LIFESTYLE_ICONS = {
+  activity: "🏃", sleep: "🌙", nutrition: "🍎",
+};
+
+const DEFAULT_SYSTEMS = [
+  { key:"liver", name:"Печень", score:null, color:C.gray, icon:"ti-bolt", markers:[] },
+  { key:"kidneys", name:"Почки", score:null, color:C.gray, icon:"ti-water", markers:[] },
+  { key:"heart", name:"Сердце и сосуды", score:null, color:C.gray, icon:"ti-heart", markers:[] },
+  { key:"blood", name:"Кровь и иммунитет", score:null, color:C.gray, icon:"ti-shield", markers:[] },
+  { key:"thyroid", name:"Щитовидная железа", score:null, color:C.gray, icon:"ti-atom", markers:[] },
+  { key:"hormones", name:"Гормоны", score:null, color:C.gray, icon:"ti-flask", markers:[] },
+  { key:"metabolism", name:"Метаболизм и энергия", score:null, color:C.gray, icon:"ti-fire", markers:[] },
+  { key:"vitamins", name:"Витамины и минералы", score:null, color:C.gray, icon:"ti-sun", markers:[] },
+  { key:"proteins", name:"Белки и аминокислоты", score:null, color:C.gray, icon:"ti-dna", markers:[] },
 ];
 
-const ORGAN_DETAILS = {
-  heart: {
-    markers:[
-      {icon:"💓",name:"Холестерин",val:"4.8 ммоль/л",status:"норма"},
-      {icon:"🩸",name:"ЛПНП",val:"2.9 ммоль/л",status:"норма"},
-      {icon:"📈",name:"Триглицериды",val:"1.6 ммоль/л",status:"внимание"},
-      {icon:"💗",name:"ЧСС в покое",val:"62 уд/мин",status:"норма"},
-    ],
-    insight:"Сердце работает хорошо. Триглицериды чуть повышены — сократи быстрые углеводы и добавь 2 кардио в неделю.",
-    doctor:"Записаться к кардиологу",
-    link:"https://docdoc.ru/doctor/kardiolog",
-  },
-  immune: {
-    markers:[
-      {icon:"🔬",name:"Лейкоциты",val:"5.8 тыс/мкл",status:"норма"},
-      {icon:"☀️",name:"Витамин D",val:"28 нг/мл",status:"внимание"},
-      {icon:"🧪",name:"СОЭ",val:"12 мм/ч",status:"норма"},
-    ],
-    insight:"Иммунитет в норме, но витамин D немного ниже оптимума. Добавь прогулки на солнце или добавку D3.",
-    doctor:"Записаться к терапевту",
-    link:"https://docdoc.ru/doctor/terapevt",
-  },
-  hormones: {
-    markers:[
-      {icon:"🦋",name:"ТТГ",val:"3.8 мМЕ/л",status:"внимание"},
-      {icon:"💉",name:"Инсулин",val:"9.2 мкМЕ/мл",status:"норма"},
-      {icon:"⚡",name:"Кортизол",val:"420 нмоль/л",status:"норма"},
-    ],
-    insight:"ТТГ у верхней границы нормы — стоит проверить щитовидку. Рекомендую сдать расширенный анализ.",
-    doctor:"Записаться к эндокринологу",
-    link:"https://docdoc.ru/doctor/endokrinolog",
-  },
-  liver: {
-    markers:[
-      {icon:"🧬",name:"АЛТ",val:"28 Ед/л",status:"норма"},
-      {icon:"🧬",name:"АСТ",val:"24 Ед/л",status:"норма"},
-      {icon:"💛",name:"Билирубин",val:"14 мкмоль/л",status:"норма"},
-    ],
-    insight:"Печень работает хорошо, все показатели в норме. Продолжай в том же духе!",
-    doctor:"Записаться к гепатологу",
-    link:"https://docdoc.ru/doctor/hirurg",
-  },
-  gut: {
-    markers:[
-      {icon:"🔬",name:"Пепсиноген I",val:"42 мкг/л",status:"норма"},
-      {icon:"🦠",name:"H.pylori",val:"Отрицательно",status:"норма"},
-      {icon:"📊",name:"Гастрин-17",val:"8.2 пмоль/л",status:"внимание"},
-    ],
-    insight:"Гастрин немного выше нормы. Возможно стоит пересмотреть питание и снизить острое и кофе.",
-    doctor:"Записаться к гастроэнтерологу",
-    link:"https://docdoc.ru/doctor/gastroenterolog",
-  },
-  activity: {
-    markers:[
-      {icon:"👟",name:"Шаги вчера",val:"6 200 шаг.",status:"внимание"},
-      {icon:"⚡",name:"Тренировки",val:"2 за неделю",status:"внимание"},
-      {icon:"🔥",name:"Калории",val:"320 ккал/день",status:"внимание"},
-    ],
-    insight:"Активность ниже нормы — стоит добавить хотя бы одну прогулку в день. Цель: 8 000 шагов.",
-    doctor:null,link:null,
-  },
-  sleep: {
-    markers:[
-      {icon:"🌙",name:"Длительность",val:"6.2 ч",status:"внимание"},
-      {icon:"📊",name:"Качество",val:"72%",status:"норма"},
-      {icon:"⏰",name:"Регулярность",val:"Низкая",status:"внимание"},
-    ],
-    insight:"Сон короткий — рекомендую ложиться на 30–60 минут раньше. Норма 7–9 часов.",
-    doctor:null,link:null,
-  },
-  kidneys: {
-    markers:[
-      {icon:"💧",name:"Креатинин",val:"82 мкмоль/л",status:"норма"},
-      {icon:"🔬",name:"Мочевина",val:"5.4 ммоль/л",status:"норма"},
-      {icon:"⚗️",name:"Мочевая к-та",val:"310 мкмоль/л",status:"норма"},
-    ],
-    insight:"Почки работают отлично, все показатели в норме. Пей достаточно воды — 1.5–2 л в день.",
-    doctor:null,link:null,
-  },
-  nervous: {
-    markers:[
-      {icon:"🧪",name:"B12",val:"180 пмоль/л",status:"внимание"},
-      {icon:"⚡",name:"Магний",val:"0.68 ммоль/л",status:"внимание"},
-      {icon:"😰",name:"Кортизол",val:"Норма",status:"норма"},
-    ],
-    insight:"B12 и магний ниже оптимума — это может влиять на усталость и концентрацию. Рекомендую добавки.",
-    doctor:"Записаться к неврологу",
-    link:"https://docdoc.ru/doctor/nevrolog",
-  },
-};
+const DEFAULT_LIFESTYLE = [
+  { key:"activity", name:"Активность", score:null, icon:"ti-walk" },
+  { key:"sleep", name:"Сон", score:null, icon:"ti-moon" },
+  { key:"nutrition", name:"Питание", score:null, icon:"ti-apple" },
+];
 
-const TOTAL_SCORE = 58;
+function getScoringData() {
+  try {
+    const saved = localStorage.getItem(SCORING_KEY);
+    if (saved) return JSON.parse(saved);
+  } catch(e) {}
+  return null;
+}
+
+function scoreColor(score) {
+  if (score === null || score === undefined) return C.gray;
+  if (score >= 80) return C.green;
+  if (score >= 50) return C.yellow;
+  return C.redScore;
+}
+
+function scoreGrad(score) {
+  const color = scoreColor(score);
+  if (color === C.green) return [C.teal3, C.teal];
+  if (color === C.yellow) return [C.amber2, C.amber];
+  if (color === C.redScore) return [C.red2, C.red];
+  return [C.text5, C.text4];
+}
+
+function scoreLabel(score) {
+  if (score === null || score === undefined) return "Нет данных";
+  if (score >= 80) return "Отличный уровень";
+  if (score >= 65) return "Хороший уровень";
+  if (score >= 50) return "Средний уровень";
+  return "Низкий уровень";
+}
+
+function markerStatus(icon) {
+  if (icon === "✓") return "норма";
+  if (icon === "⚠") return "внимание";
+  if (icon === "✗") return "отклонение";
+  return "нет данных";
+}
 
 function statusColor(s) {
-  if (s==="норма") return C.teal;
-  if (s==="внимание") return C.amber;
-  return C.red;
+  if (s==="норма") return C.green;
+  if (s==="внимание") return C.yellow;
+  if (s==="отклонение") return C.redScore;
+  return C.gray;
 }
 
 function ScoreRing({score}) {
   const [disp, setDisp] = React.useState(0);
+  const hasScore = score !== null && score !== undefined;
   React.useEffect(()=>{
+    if (!hasScore) { setDisp(0); return; }
     let start=null, dur=1200;
     const step=(ts)=>{
       if(!start) start=ts;
@@ -174,27 +144,33 @@ function ScoreRing({score}) {
   },[score]);
 
   const r=46, circ=2*Math.PI*r;
-  const fill=(score/100)*circ;
-  const offset=circ-fill;
+  const fill=hasScore?(score/100)*circ:0;
+  const ringColor = scoreColor(score);
 
   return (
     <div style={{display:"flex",flexDirection:"column",alignItems:"center",padding:"18px 0 10px"}}>
       <svg width="120" height="120" viewBox="0 0 120 120">
         <circle cx="60" cy="60" r={r} fill="none" stroke={C.card2} strokeWidth="9"/>
-        <circle cx="60" cy="60" r={r} fill="none" stroke={C.teal} strokeWidth="9"
+        {hasScore && <circle cx="60" cy="60" r={r} fill="none" stroke={ringColor} strokeWidth="9"
           strokeDasharray={`${fill} ${circ-fill}`} strokeLinecap="round"
-          transform="rotate(-90 60 60)" opacity="0.95"/>
+          transform="rotate(-90 60 60)" opacity="0.95"/>}
         <text x="60" y="60" textAnchor="middle" dominantBaseline="central"
-          fontSize="34" fontWeight="700" fill={C.teal} fontFamily="DM Sans,sans-serif">{disp}</text>
+          fontSize="34" fontWeight="700" fill={ringColor} fontFamily="DM Sans,sans-serif">
+          {hasScore ? disp : "—"}
+        </text>
       </svg>
-      <div style={{fontSize:12,fontWeight:600,color:C.teal,marginTop:4,letterSpacing:0.2}}>
-        {score>=80?"Отличный уровень":score>=65?"Хороший уровень":score>=50?"Средний уровень":"Низкий уровень"}
+      <div style={{fontSize:12,fontWeight:600,color:ringColor,marginTop:4,letterSpacing:0.2}}>
+        {scoreLabel(score)}
       </div>
     </div>
   );
 }
 
 function SystemRow({sys, onClick, delay}) {
+  const icon = SYSTEM_ICONS[sys.key] || "📊";
+  const hasScore = sys.score !== null && sys.score !== undefined;
+  const color = scoreColor(sys.score);
+  const grad = scoreGrad(sys.score);
   return (
     <div onClick={()=>onClick(sys)} style={{cursor:"pointer",marginBottom:8}} className="fade-up"
       onMouseEnter={e=>e.currentTarget.style.opacity="0.7"}
@@ -202,39 +178,58 @@ function SystemRow({sys, onClick, delay}) {
     >
       <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
         <div style={{fontSize:11,color:C.text2,display:"flex",alignItems:"center",gap:5}}>
-          <span>{sys.icon}</span> {sys.name}
+          <span>{icon}</span> {sys.name}
         </div>
-        <div style={{fontSize:11,fontWeight:700,color:sys.color}}>{sys.score}</div>
+        <div style={{fontSize:11,fontWeight:700,color:color}}>
+          {hasScore ? sys.score : "—"}
+        </div>
       </div>
       <div style={{background:C.card2,borderRadius:4,height:5,overflow:"hidden"}}>
-        <div className="bar-fill" style={{
+        {hasScore && <div className="bar-fill" style={{
           width:`${sys.score}%`,height:5,borderRadius:4,
-          background:`linear-gradient(90deg,${sys.grad[0]},${sys.grad[1]})`,
+          background:`linear-gradient(90deg,${grad[0]},${grad[1]})`,
           animationDelay:`${delay}s`
-        }}/>
+        }}/>}
       </div>
     </div>
   );
 }
 
-const KEY_NORMALIZE = {
-  immunity: 'immune', gastro: 'gut', gastrointestinal: 'gut',
-  kidney: 'kidneys', renal: 'kidneys', neuro: 'nervous', neurological: 'nervous',
-  cardiac: 'heart', cardiovascular: 'heart', hormone: 'hormones', endocrine: 'hormones',
-  hepatic: 'liver', hepato: 'liver', muscular: 'activity', fitness: 'activity',
-};
+function LifestyleRow({item, delay}) {
+  const icon = LIFESTYLE_ICONS[item.key] || "📊";
+  const hasScore = item.score !== null && item.score !== undefined;
+  const color = scoreColor(item.score);
+  const grad = scoreGrad(item.score);
+  return (
+    <div style={{marginBottom:8}} className="fade-up">
+      <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
+        <div style={{fontSize:11,color:C.text2,display:"flex",alignItems:"center",gap:5}}>
+          <span>{icon}</span> {item.name}
+        </div>
+        <div style={{fontSize:11,fontWeight:700,color:color}}>
+          {hasScore ? item.score : "Нет данных"}
+        </div>
+      </div>
+      <div style={{background:C.card2,borderRadius:4,height:5,overflow:"hidden"}}>
+        {hasScore && <div className="bar-fill" style={{
+          width:`${item.score}%`,height:5,borderRadius:4,
+          background:`linear-gradient(90deg,${grad[0]},${grad[1]})`,
+          animationDelay:`${delay}s`
+        }}/>}
+      </div>
+    </div>
+  );
+}
 
 function OrganDetail({sys, onBack}) {
-  const normalizedKey = KEY_NORMALIZE[sys.key] || sys.key;
-  const d = ORGAN_DETAILS[normalizedKey] || {
-    markers: sys.markers || [],
-    insight: sys.insight || 'Данных пока недостаточно для детального анализа.',
-    doctor: null,
-    link: null,
-  };
+  const hasScore = sys.score !== null && sys.score !== undefined;
+  const color = scoreColor(sys.score);
+  const grad = scoreGrad(sys.score);
+  const icon = SYSTEM_ICONS[sys.key] || "📊";
+  const markers = sys.markers || [];
+
   return (
     <div style={{flex:1,overflowY:"auto",paddingBottom:80}} className="fade-up">
-      {/* Back */}
       <div style={{padding:"10px 16px 0",display:"flex",alignItems:"center",gap:8}}>
         <button onClick={onBack} style={{
           background:"none",border:"none",color:C.text4,fontSize:14,cursor:"pointer",
@@ -243,61 +238,61 @@ function OrganDetail({sys, onBack}) {
       </div>
 
       <div style={{padding:"10px 16px 0"}}>
-        {/* Score card */}
         <div style={{background:C.card2,borderRadius:18,padding:"14px 16px",marginBottom:12,border:`0.5px solid ${C.border}`}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:10}}>
             <div>
-              <div style={{fontSize:16,fontWeight:700,color:C.text,marginBottom:2}}>{sys.icon} {sys.name}</div>
-              <div style={{fontSize:11,color:sys.color,fontWeight:600}}>
-                {sys.score>=80?"Отличный":sys.score>=65?"Хороший":sys.score>=50?"Средний":"Низкий"} уровень
+              <div style={{fontSize:16,fontWeight:700,color:C.text,marginBottom:2}}>{icon} {sys.name}</div>
+              <div style={{fontSize:11,color:color,fontWeight:600}}>
+                {scoreLabel(sys.score)}
               </div>
             </div>
-            <div style={{fontSize:36,fontWeight:700,color:sys.color,lineHeight:1}}>{sys.score}</div>
+            <div style={{fontSize:36,fontWeight:700,color:color,lineHeight:1}}>
+              {hasScore ? sys.score : "—"}
+            </div>
           </div>
           <div style={{background:C.card,borderRadius:5,height:6,overflow:"hidden"}}>
-            <div style={{width:`${sys.score}%`,height:6,borderRadius:5,background:`linear-gradient(90deg,${sys.grad[0]},${sys.grad[1]})`}}/>
+            {hasScore && <div style={{width:`${sys.score}%`,height:6,borderRadius:5,background:`linear-gradient(90deg,${grad[0]},${grad[1]})`}}/>}
           </div>
         </div>
 
-        {/* Markers */}
-        <div style={{fontSize:10,color:C.text4,letterSpacing:"0.6px",fontWeight:600,marginBottom:8}}>ПОКАЗАТЕЛИ</div>
-        <div style={{display:"flex",flexDirection:"column",gap:6,marginBottom:12}}>
-          {(d.markers || []).map((m,i)=>(
-            <div key={i} style={{
-              display:"flex",alignItems:"center",gap:10,
-              background:C.card2,borderRadius:12,padding:"9px 12px",
-              border:`0.5px solid ${m.status==="внимание"?C.amber+"44":m.status==="отклонение"?C.red+"44":C.border}`,
-            }}>
-              <div style={{fontSize:18,flexShrink:0}}>{m.icon}</div>
-              <div style={{flex:1}}>
-                <div style={{fontSize:10,color:C.text3}}>{m.name}</div>
-                <div style={{fontSize:12,fontWeight:600,color:C.text2,marginTop:1}}>{m.val}</div>
-              </div>
-              <div style={{
-                fontSize:9,padding:"3px 7px",borderRadius:6,fontWeight:700,
-                background:`${statusColor(m.status)}18`,color:statusColor(m.status),
-                flexShrink:0,
-              }}>{m.status}</div>
+        {markers.length > 0 ? (
+          <>
+            <div style={{fontSize:10,color:C.text4,letterSpacing:"0.6px",fontWeight:600,marginBottom:8}}>ПОКАЗАТЕЛИ</div>
+            <div style={{display:"flex",flexDirection:"column",gap:6,marginBottom:12}}>
+              {markers.map((m,i)=>{
+                const status = markerStatus(m.icon);
+                const mColor = m.color || statusColor(status);
+                return (
+                  <div key={i} style={{
+                    display:"flex",alignItems:"center",gap:10,
+                    background:C.card2,borderRadius:12,padding:"9px 12px",
+                    border:`0.5px solid ${status==="внимание"?C.yellow+"44":status==="отклонение"?C.redScore+"44":C.border}`,
+                  }}>
+                    <div style={{fontSize:16,flexShrink:0,width:22,textAlign:"center",color:mColor}}>{m.icon}</div>
+                    <div style={{flex:1}}>
+                      <div style={{fontSize:10,color:C.text3}}>{m.name}</div>
+                      <div style={{fontSize:12,fontWeight:600,color:C.text2,marginTop:1}}>{m.val}</div>
+                    </div>
+                    {m.pct !== null && m.pct !== undefined && (
+                      <div style={{
+                        fontSize:9,padding:"3px 7px",borderRadius:6,fontWeight:700,
+                        background:`${mColor}18`,color:mColor,flexShrink:0,
+                      }}>{m.pct}</div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
-          ))}
-        </div>
-
-        {/* Insight */}
-        {d.insight && (
-        <div style={{background:"#0a1515",borderRadius:14,padding:"12px 14px",borderLeft:`2px solid ${C.teal}`,marginBottom:12}}>
-          <div style={{fontSize:10,color:C.teal,fontWeight:700,marginBottom:5}}>💡 Инсайт</div>
-          <div style={{fontSize:12,color:C.text3,lineHeight:1.6}}>{d.insight}</div>
-        </div>
-        )}
-
-        {/* Action */}
-        {d.doctor && (
-          <a href={d.link} target="_blank" rel="noreferrer" style={{
-            display:"block",textDecoration:"none",
-            background:`${C.teal}15`,border:`0.5px solid ${C.teal}44`,
-            borderRadius:12,padding:"11px 16px",
-            textAlign:"center",fontSize:13,color:C.teal,fontWeight:600,
-          }}>👉 {d.doctor}</a>
+          </>
+        ) : (
+          <div style={{
+            background:C.card2,borderRadius:14,padding:"20px 16px",
+            textAlign:"center",border:`0.5px solid ${C.border}`,marginBottom:12,
+          }}>
+            <div style={{fontSize:24,marginBottom:8}}>📋</div>
+            <div style={{fontSize:13,color:C.text3}}>Нет данных</div>
+            <div style={{fontSize:11,color:C.text4,marginTop:4}}>Загрузите результаты анализов в чат для оценки этой системы</div>
+          </div>
         )}
       </div>
     </div>
@@ -306,16 +301,46 @@ function OrganDetail({sys, onBack}) {
 
 function HealthTab() {
   const [selected, setSelected] = React.useState(null);
+  const scoring = getScoringData();
+
+  const systems = scoring && scoring.systems ? scoring.systems : DEFAULT_SYSTEMS;
+  const lifestyle = scoring && scoring.lifestyle ? scoring.lifestyle : DEFAULT_LIFESTYLE;
+  const totalScore = scoring ? scoring.total : null;
+  const insights = scoring && scoring.insights ? scoring.insights : [];
+
   if (selected) return <OrganDetail sys={selected} onBack={()=>setSelected(null)}/>;
+
   return (
     <div style={{flex:1,overflowY:"auto",paddingBottom:80}}>
-      <ScoreRing score={TOTAL_SCORE}/>
+      <ScoreRing score={totalScore}/>
       <div style={{padding:"0 16px 16px"}}>
+        {/* Organ systems */}
         <div style={{fontSize:10,color:C.text4,letterSpacing:"0.6px",fontWeight:600,marginBottom:10}}>СИСТЕМЫ ОРГАНОВ</div>
-        {SYSTEMS.map((s,i)=>(
+        {systems.map((s,i)=>(
           <SystemRow key={s.key} sys={s} onClick={setSelected} delay={i*0.05}/>
         ))}
-        <div style={{fontSize:10,color:C.text5,textAlign:"center",marginTop:6}}>Нажми на систему для деталей →</div>
+
+        {/* Lifestyle */}
+        <div style={{fontSize:10,color:C.text4,letterSpacing:"0.6px",fontWeight:600,marginBottom:10,marginTop:16}}>ОБРАЗ ЖИЗНИ</div>
+        {lifestyle.map((item,i)=>(
+          <LifestyleRow key={item.key} item={item} delay={i*0.05}/>
+        ))}
+
+        {/* Insights */}
+        {insights.length > 0 && (
+          <div style={{marginTop:16}}>
+            <div style={{fontSize:10,color:C.text4,letterSpacing:"0.6px",fontWeight:600,marginBottom:8}}>ИНСАЙТЫ</div>
+            {insights.map((ins,i)=>(
+              <div key={i} style={{
+                background:"#0a1515",borderRadius:12,padding:"10px 14px",
+                borderLeft:`2px solid ${C.teal}`,marginBottom:8,
+                fontSize:12,color:C.text3,lineHeight:1.5,
+              }}>💡 {typeof ins === 'string' ? ins : ins.text}</div>
+            ))}
+          </div>
+        )}
+
+        <div style={{fontSize:10,color:C.text5,textAlign:"center",marginTop:10}}>Нажми на систему для деталей →</div>
       </div>
     </div>
   );
@@ -372,7 +397,6 @@ function ChatTab() {
   const endRef = React.useRef(null);
   const fileRef = React.useRef(null);
   const textRef = React.useRef(null);
-
   React.useEffect(()=>{ endRef.current?.scrollIntoView({behavior:"smooth"}); },[msgs,loading]);
   React.useEffect(()=>{ try { localStorage.setItem(STORAGE_KEY, JSON.stringify(msgs)); } catch(e){} },[msgs]);
 
@@ -413,7 +437,6 @@ function ChatTab() {
   };
 
   const onKey=(e)=>{ if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();send();} };
-
   const autoResize=(e)=>{
     e.target.style.height="auto";
     e.target.style.height=Math.min(e.target.scrollHeight,100)+"px";
@@ -421,7 +444,6 @@ function ChatTab() {
 
   return (
     <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
-      {/* Clear chat button */}
       <div style={{display:"flex",justifyContent:"flex-end",padding:"6px 14px 0"}}>
         <button onClick={clearChat} style={{
           background:"none",border:`0.5px solid ${C.border}`,borderRadius:8,
@@ -432,22 +454,17 @@ function ChatTab() {
           onMouseLeave={e=>{e.currentTarget.style.borderColor=C.border;e.currentTarget.style.color=C.text4;}}
         >🗑 Очистить чат</button>
       </div>
-      {/* Messages */}
       <div style={{flex:1,overflowY:"auto",padding:"6px 14px 8px"}}>
         {msgs.map((m,i)=><ChatBubble key={i} msg={m}/>)}
         {loading && <TypingDots/>}
         <div ref={endRef}/>
       </div>
-
-      {/* File preview */}
       {file && (
         <div style={{margin:"0 14px 6px",padding:"8px 12px",background:C.card2,borderRadius:10,fontSize:12,color:C.teal,display:"flex",alignItems:"center",justifyContent:"space-between",border:`0.5px solid ${C.border}`}}>
           <span>📎 {file.name}</span>
           <button onClick={()=>setFile(null)} style={{background:"none",border:"none",color:C.text4,fontSize:18,cursor:"pointer",lineHeight:1}}>×</button>
         </div>
       )}
-
-      {/* Input bar */}
       <div style={{padding:"8px 14px 16px",borderTop:`0.5px solid ${C.border}`,display:"flex",alignItems:"flex-end",gap:8,background:C.card}}>
         <button onClick={()=>fileRef.current?.click()} style={{
           width:38,height:38,borderRadius:"50%",border:`0.5px solid ${C.border}`,
@@ -455,7 +472,6 @@ function ChatTab() {
           display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,
         }}>📎</button>
         <input type="file" ref={fileRef} onChange={e=>setFile(e.target.files[0])} style={{display:"none"}} accept="image/*,.pdf"/>
-
         <div style={{flex:1,background:C.card2,borderRadius:20,border:`0.5px solid ${C.border}`,padding:"10px 14px",display:"flex",alignItems:"flex-end"}}>
           <textarea
             ref={textRef}
@@ -467,7 +483,6 @@ function ChatTab() {
             style={{flex:1,fontSize:14,color:C.text,background:"transparent",maxHeight:100,overflowY:"auto",lineHeight:1.4}}
           />
         </div>
-
         <button onClick={send} disabled={loading||(!input.trim()&&!file)} style={{
           width:38,height:38,borderRadius:"50%",border:"none",flexShrink:0,
           background:(input.trim()||file)&&!loading?`linear-gradient(135deg,${C.teal3},${C.teal})`:`${C.border}`,
@@ -492,7 +507,6 @@ function ProfileTab() {
   ];
   return (
     <div style={{flex:1,overflowY:"auto",padding:"16px 16px 80px"}} className="fade-up">
-      {/* Avatar */}
       <div style={{
         background:`linear-gradient(135deg,${C.teal3},${C.purple})`,
         borderRadius:20,padding:24,marginBottom:16,textAlign:"center",
@@ -505,8 +519,6 @@ function ProfileTab() {
         <div style={{fontSize:18,fontWeight:700,color:"#fff"}}>Пользователь</div>
         <div style={{fontSize:11,color:"rgba(255,255,255,0.7)",marginTop:3}}>Участник Vespra</div>
       </div>
-
-      {/* Fields */}
       {fields.map(f=>(
         <div key={f.label} style={{
           display:"flex",alignItems:"center",padding:"13px 0",
@@ -517,7 +529,6 @@ function ProfileTab() {
           <div style={{fontSize:13,color:C.text4}}>{f.val}</div>
         </div>
       ))}
-
       <div style={{
         marginTop:16,background:C.card2,borderRadius:14,
         padding:"12px 14px",border:`0.5px solid ${C.border}`,
@@ -531,22 +542,18 @@ function ProfileTab() {
 
 function App() {
   const [tab, setTab] = React.useState("chat");
-
   const todayStr = new Date().toLocaleDateString("ru-RU",{weekday:"long",day:"numeric",month:"long"});
-
   const navItems=[
     {id:"chat",icon:"💬",label:"Чат"},
     {id:"health",icon:"🫀",label:"Здоровье"},
     {id:"profile",icon:"👤",label:"Профиль"},
   ];
-
   return (
     <div style={{
       height:"100%",display:"flex",flexDirection:"column",
       background:C.card,maxWidth:430,margin:"0 auto",
       position:"relative",
     }}>
-      {/* Header */}
       <div style={{
         padding:"48px 18px 12px",
         borderBottom:`0.5px solid ${C.border}`,
@@ -573,15 +580,11 @@ function App() {
           }}>🌿</div>
         </div>
       </div>
-
-      {/* Content */}
       <div style={{flex:1,overflow:"hidden",display:"flex",flexDirection:"column"}}>
         {tab==="chat" && <ChatTab/>}
         {tab==="health" && <HealthTab/>}
         {tab==="profile" && <ProfileTab/>}
       </div>
-
-      {/* Bottom nav */}
       <div style={{
         display:"flex",
         background:"rgba(10,26,26,0.97)",
@@ -611,7 +614,6 @@ function App() {
     </div>
   );
 }
-
 ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
 </script>
 </body>
