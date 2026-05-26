@@ -34,7 +34,13 @@ button, input { font-family:'DM Sans',sans-serif; outline:none; -webkit-appearan
 <script type="text/babel">
 
 const WEBHOOK = "https://juliachuma.app.n8n.cloud/webhook/645aaa39-0971-4b0f-b829-c448c7a684f9/chat";
-const SESSION_ID = "vespra-" + Math.random().toString(36).slice(2,9);
+const STORAGE_KEY = "vespra_chat_history";
+const SESSION_KEY = "vespra_session_id";
+const SESSION_ID = (() => {
+  let id = localStorage.getItem(SESSION_KEY);
+  if (!id) { id = "vespra-" + Math.random().toString(36).slice(2,9); localStorage.setItem(SESSION_KEY, id); }
+  return id;
+})();
 
 const C = {
   bg: "#050f0f", card: "#0a1a1a", card2: "#0d2020",
@@ -359,9 +365,11 @@ function TypingDots() {
 }
 
 function ChatTab() {
-  const [msgs, setMsgs] = React.useState([
-    {role:"assistant",content:"Привет! Я Vespra 👋\nТвой персональный агент здоровья. Расскажи как себя чувствуешь, или скинь анализы, фото еды, тренировки — я всё проанализирую."}
-  ]);
+  const defaultMsg = [{role:"assistant",content:"Привет! Я Vespra 👋\nТвой персональный агент здоровья. Расскажи как себя чувствуешь, или скинь анализы, фото еды, тренировки — я всё проанализирую."}];
+  const [msgs, setMsgs] = React.useState(() => {
+    try { const saved = localStorage.getItem(STORAGE_KEY); return saved ? JSON.parse(saved) : defaultMsg; }
+    catch(e) { return defaultMsg; }
+  });
   const [input, setInput] = React.useState("");
   const [loading, setLoading] = React.useState(false);
   const [file, setFile] = React.useState(null);
@@ -370,6 +378,14 @@ function ChatTab() {
   const textRef = React.useRef(null);
 
   React.useEffect(()=>{ endRef.current?.scrollIntoView({behavior:"smooth"}); },[msgs,loading]);
+  React.useEffect(()=>{ try { localStorage.setItem(STORAGE_KEY, JSON.stringify(msgs)); } catch(e){} },[msgs]);
+
+  const clearChat = () => {
+    setMsgs(defaultMsg);
+    localStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem(SESSION_KEY);
+    window.location.reload();
+  };
 
   const send = async() => {
     const txt = input.trim();
@@ -409,8 +425,19 @@ function ChatTab() {
 
   return (
     <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
+      {/* Clear chat button */}
+      <div style={{display:"flex",justifyContent:"flex-end",padding:"6px 14px 0"}}>
+        <button onClick={clearChat} style={{
+          background:"none",border:`0.5px solid ${C.border}`,borderRadius:8,
+          padding:"4px 10px",fontSize:10,color:C.text4,cursor:"pointer",
+          display:"flex",alignItems:"center",gap:4,
+        }}
+          onMouseEnter={e=>{e.currentTarget.style.borderColor=C.red;e.currentTarget.style.color=C.red;}}
+          onMouseLeave={e=>{e.currentTarget.style.borderColor=C.border;e.currentTarget.style.color=C.text4;}}
+        >🗑 Очистить чат</button>
+      </div>
       {/* Messages */}
-      <div style={{flex:1,overflowY:"auto",padding:"14px 14px 8px"}}>
+      <div style={{flex:1,overflowY:"auto",padding:"6px 14px 8px"}}>
         {msgs.map((m,i)=><ChatBubble key={i} msg={m}/>)}
         {loading && <TypingDots/>}
         <div ref={endRef}/>
