@@ -231,8 +231,28 @@
     {
       "key": "nutrition",
       "name": "Питание",
-      "score": null,
-      "icon": "ti-apple"
+      "score": 65,
+      "icon": "ti-apple",
+      "details": {
+        "calories": 400,
+        "protein": 15,
+        "fat": 15,
+        "carbs": 45,
+        "meals": [
+          {
+            "name": "Завтрак",
+            "type": "breakfast",
+            "description": "Твой завтрак на сегодня состоял из овсянки с бананом и мёдом, а также кофе с молоком. Вот примерный ",
+            "calories": 400,
+            "protein": 15,
+            "fat": 15,
+            "carbs": 45
+          }
+        ],
+        "insights": [
+          "Данные о питании обновлены"
+        ]
+      }
     }
   ],
   "insights": [
