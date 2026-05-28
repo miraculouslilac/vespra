@@ -34,6 +34,8 @@ button, input { font-family:'DM Sans',sans-serif; outline:none; -webkit-appearan
 <script type="text/babel">
 
 const WEBHOOK = "https://juliachuma.app.n8n.cloud/webhook/645aaa39-0971-4b0f-b829-c448c7a684f9/chat";
+const SCORING_REPO_URL = "https://raw.githubusercontent.com/miraculouslilac/vespra/main/scoring_data.json";
+const CHAT_HISTORY_URL = "https://raw.githubusercontent.com/miraculouslilac/vespra/main/chat_history.json";
 const STORAGE_KEY = "vespra_chat_history";
 const SESSION_KEY = "vespra_session_id";
 const SCORING_KEY = "vespra_scoring_data";
@@ -77,9 +79,9 @@ const DEFAULT_SYSTEMS = [
 ];
 
 const DEFAULT_LIFESTYLE = [
-  { key:"activity", name:"Активность", score:null, icon:"ti-walk" },
-  { key:"sleep", name:"Сон", score:null, icon:"ti-moon" },
-  { key:"nutrition", name:"Питание", score:null, icon:"ti-apple" },
+  { key:"activity", name:"Активность", score:null, icon:"ti-walk", details:null },
+  { key:"sleep", name:"Сон", score:null, icon:"ti-moon", details:null },
+  { key:"nutrition", name:"Питание", score:null, icon:"ti-apple", details:null },
 ];
 
 function getScoringData() {
@@ -93,13 +95,23 @@ function getScoringData() {
 function useScoringData() {
   const [scoring, setScoring] = React.useState(getScoringData);
   React.useEffect(() => {
-    fetch('scoring_data.json?t=' + Date.now())
+    // Fetch from GitHub raw (bypasses Vercel cache)
+    fetch(SCORING_REPO_URL + '?t=' + Date.now())
       .then(r => { if (r.ok) return r.json(); throw new Error('not found'); })
       .then(data => {
         localStorage.setItem(SCORING_KEY, JSON.stringify(data));
         setScoring(data);
       })
-      .catch(() => {});
+      .catch(() => {
+        // Fallback to local file
+        fetch('scoring_data.json?t=' + Date.now())
+          .then(r => { if (r.ok) return r.json(); throw new Error('not found'); })
+          .then(data => {
+            localStorage.setItem(SCORING_KEY, JSON.stringify(data));
+            setScoring(data);
+          })
+          .catch(() => {});
+      });
   }, []);
   return scoring;
 }
@@ -148,34 +160,29 @@ function ScoreRing({score}) {
     if (!hasScore) { setDisp(0); return; }
     let start=null, dur=1200;
     const step=(ts)=>{
-      if(!start) start=ts;
+      if(!start)start=ts;
       const p=Math.min((ts-start)/dur,1);
-      const e=1-Math.pow(1-p,3);
-      setDisp(Math.round(e*score));
+      setDisp(Math.round(score*p));
       if(p<1) requestAnimationFrame(step);
     };
     requestAnimationFrame(step);
   },[score]);
-
-  const r=46, circ=2*Math.PI*r;
-  const fill=hasScore?(score/100)*circ:0;
-  const ringColor = scoreColor(score);
-
+  const pct = hasScore ? score : 0;
+  const r=54, circ=2*Math.PI*r;
+  const color = scoreColor(score);
+  const grad = scoreGrad(score);
   return (
-    <div style={{display:"flex",flexDirection:"column",alignItems:"center",padding:"18px 0 10px"}}>
-      <svg width="120" height="120" viewBox="0 0 120 120">
-        <circle cx="60" cy="60" r={r} fill="none" stroke={C.card2} strokeWidth="9"/>
-        {hasScore && <circle cx="60" cy="60" r={r} fill="none" stroke={ringColor} strokeWidth="9"
-          strokeDasharray={`${fill} ${circ-fill}`} strokeLinecap="round"
-          transform="rotate(-90 60 60)" opacity="0.95"/>}
-        <text x="60" y="60" textAnchor="middle" dominantBaseline="central"
-          fontSize="34" fontWeight="700" fill={ringColor} fontFamily="DM Sans,sans-serif">
-          {hasScore ? disp : "—"}
-        </text>
+    <div style={{textAlign:"center",padding:"16px 0 12px"}}>
+      <svg width="140" height="140" style={{transform:"rotate(-90deg)"}}>
+        <circle cx="70" cy="70" r={r} fill="none" stroke={C.card2} strokeWidth="10"/>
+        {hasScore && <circle cx="70" cy="70" r={r} fill="none" stroke={color} strokeWidth="10"
+          strokeDasharray={circ} strokeDashoffset={circ*(1-pct/100)} strokeLinecap="round"
+          style={{transition:"stroke-dashoffset 1.2s ease"}}/>}
       </svg>
-      <div style={{fontSize:12,fontWeight:600,color:ringColor,marginTop:4,letterSpacing:0.2}}>
-        {scoreLabel(score)}
+      <div style={{marginTop:-95,marginBottom:55,fontSize:38,fontWeight:700,color:hasScore?color:C.text5}}>
+        {hasScore ? disp : "—"}
       </div>
+      <div style={{fontSize:11,color:C.text4,marginTop:4}}>{scoreLabel(score)}</div>
     </div>
   );
 }
@@ -186,19 +193,24 @@ function SystemRow({sys, onClick, delay}) {
   const color = scoreColor(sys.score);
   const grad = scoreGrad(sys.score);
   return (
-    <div onClick={()=>onClick(sys)} style={{cursor:"pointer",marginBottom:8}} className="fade-up"
-      onMouseEnter={e=>e.currentTarget.style.opacity="0.7"}
-      onMouseLeave={e=>e.currentTarget.style.opacity="1"}
+    <div onClick={()=>onClick(sys)} style={{
+      marginBottom:8,cursor:"pointer",
+      background:C.card2,borderRadius:12,padding:"10px 14px",
+      border:`0.5px solid ${C.border}`,
+      transition:"border-color .2s",
+    }}
+      onMouseEnter={e=>{e.currentTarget.style.borderColor=C.teal+"66";}}
+      onMouseLeave={e=>{e.currentTarget.style.borderColor=C.border;}}
     >
-      <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
-        <div style={{fontSize:11,color:C.text2,display:"flex",alignItems:"center",gap:5}}>
-          <span>{icon}</span> {sys.name}
+      <div style={{display:"flex",justifyContent:"space-between",marginBottom:5}}>
+        <div style={{fontSize:12,color:C.text2,display:"flex",alignItems:"center",gap:6}}>
+          <span style={{fontSize:14}}>{icon}</span> {sys.name}
         </div>
-        <div style={{fontSize:11,fontWeight:700,color:color}}>
+        <div style={{fontSize:13,fontWeight:700,color:color}}>
           {hasScore ? sys.score : "—"}
         </div>
       </div>
-      <div style={{background:C.card2,borderRadius:4,height:5,overflow:"hidden"}}>
+      <div style={{background:C.card,borderRadius:4,height:5,overflow:"hidden"}}>
         {hasScore && <div className="bar-fill" style={{
           width:`${sys.score}%`,height:5,borderRadius:4,
           background:`linear-gradient(90deg,${grad[0]},${grad[1]})`,
@@ -209,22 +221,28 @@ function SystemRow({sys, onClick, delay}) {
   );
 }
 
-function LifestyleRow({item, delay}) {
+function LifestyleRow({item, onClick, delay}) {
   const icon = LIFESTYLE_ICONS[item.key] || "📊";
   const hasScore = item.score !== null && item.score !== undefined;
   const color = scoreColor(item.score);
   const grad = scoreGrad(item.score);
   return (
-    <div style={{marginBottom:8}} className="fade-up">
+    <div onClick={()=>onClick(item)} style={{marginBottom:8,cursor:"pointer",
+      background:C.card2,borderRadius:12,padding:"10px 14px",
+      border:`0.5px solid ${C.border}`,transition:"border-color .2s",
+    }}
+      onMouseEnter={e=>{e.currentTarget.style.borderColor=C.teal+"66";}}
+      onMouseLeave={e=>{e.currentTarget.style.borderColor=C.border;}}
+    >
       <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
-        <div style={{fontSize:11,color:C.text2,display:"flex",alignItems:"center",gap:5}}>
-          <span>{icon}</span> {item.name}
+        <div style={{fontSize:12,color:C.text2,display:"flex",alignItems:"center",gap:6}}>
+          <span style={{fontSize:14}}>{icon}</span> {item.name}
         </div>
-        <div style={{fontSize:11,fontWeight:700,color:color}}>
-          {hasScore ? item.score : "Нет данных"}
+        <div style={{fontSize:13,fontWeight:700,color:color}}>
+          {hasScore ? item.score : "—"}
         </div>
       </div>
-      <div style={{background:C.card2,borderRadius:4,height:5,overflow:"hidden"}}>
+      <div style={{background:C.card,borderRadius:4,height:5,overflow:"hidden"}}>
         {hasScore && <div className="bar-fill" style={{
           width:`${item.score}%`,height:5,borderRadius:4,
           background:`linear-gradient(90deg,${grad[0]},${grad[1]})`,
@@ -313,8 +331,242 @@ function OrganDetail({sys, onBack}) {
   );
 }
 
+function ActivityDetail({item, onBack}) {
+  const hasScore = item.score !== null && item.score !== undefined;
+  const color = scoreColor(item.score);
+  const details = item.details || {};
+  const steps = details.steps;
+  const workouts = details.workouts || [];
+  const insights = details.insights || [];
+
+  return (
+    <div style={{flex:1,overflowY:"auto",paddingBottom:80}} className="fade-up">
+      <div style={{padding:"10px 16px 0"}}>
+        <button onClick={onBack} style={{background:"none",border:"none",color:C.text4,fontSize:14,cursor:"pointer",display:"flex",alignItems:"center",gap:4,padding:"4px 0"}}>← Назад</button>
+      </div>
+      <div style={{padding:"10px 16px 0"}}>
+        <div style={{background:C.card2,borderRadius:18,padding:"14px 16px",marginBottom:12,border:`0.5px solid ${C.border}`}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:6}}>
+            <div>
+              <div style={{fontSize:16,fontWeight:700,color:C.text}}>🏃 Активность</div>
+              <div style={{fontSize:11,color:color,fontWeight:600,marginTop:2}}>{scoreLabel(item.score)}</div>
+            </div>
+            <div style={{fontSize:36,fontWeight:700,color:color,lineHeight:1}}>{hasScore ? item.score : "—"}</div>
+          </div>
+        </div>
+
+        {steps !== null && steps !== undefined ? (
+          <div style={{background:C.card2,borderRadius:14,padding:"12px 16px",marginBottom:10,border:`0.5px solid ${C.border}`}}>
+            <div style={{fontSize:10,color:C.text4,fontWeight:600,marginBottom:6}}>ШАГИ ВЧЕРА</div>
+            <div style={{fontSize:24,fontWeight:700,color:C.teal}}>{steps.toLocaleString('ru-RU')}</div>
+            <div style={{fontSize:11,color:C.text4,marginTop:2}}>из 10 000 рекомендуемых</div>
+          </div>
+        ) : null}
+
+        {workouts.length > 0 ? (
+          <>
+            <div style={{fontSize:10,color:C.text4,letterSpacing:"0.6px",fontWeight:600,marginBottom:8,marginTop:12}}>ТРЕНИРОВКИ</div>
+            {workouts.map((w,i)=>(
+              <div key={i} style={{background:C.card2,borderRadius:12,padding:"10px 14px",marginBottom:6,border:`0.5px solid ${C.border}`}}>
+                <div style={{fontSize:12,fontWeight:600,color:C.text2}}>{w.name || w.type}</div>
+                <div style={{fontSize:11,color:C.text4,marginTop:2}}>{w.duration || ""} {w.date || ""}</div>
+              </div>
+            ))}
+          </>
+        ) : null}
+
+        {insights.length > 0 && (
+          <div style={{marginTop:12}}>
+            {insights.map((ins,i)=>(
+              <div key={i} style={{background:"#0a1515",borderRadius:12,padding:"10px 14px",borderLeft:`2px solid ${C.teal}`,marginBottom:8,fontSize:12,color:C.text3,lineHeight:1.5}}>💡 {ins}</div>
+            ))}
+          </div>
+        )}
+
+        {!hasScore && !steps && workouts.length === 0 && (
+          <div style={{background:C.card2,borderRadius:14,padding:"20px 16px",textAlign:"center",border:`0.5px solid ${C.border}`}}>
+            <div style={{fontSize:24,marginBottom:8}}>🏃</div>
+            <div style={{fontSize:13,color:C.text3}}>Нет данных</div>
+            <div style={{fontSize:11,color:C.text4,marginTop:4}}>Данные об активности появятся после синхронизации</div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function SleepDetail({item, onBack}) {
+  const hasScore = item.score !== null && item.score !== undefined;
+  const color = scoreColor(item.score);
+  const details = item.details || {};
+  const duration = details.duration;
+  const deepSleep = details.deepSleep;
+  const remSleep = details.remSleep;
+  const regularity = details.regularity;
+  const insights = details.insights || [];
+
+  return (
+    <div style={{flex:1,overflowY:"auto",paddingBottom:80}} className="fade-up">
+      <div style={{padding:"10px 16px 0"}}>
+        <button onClick={onBack} style={{background:"none",border:"none",color:C.text4,fontSize:14,cursor:"pointer",display:"flex",alignItems:"center",gap:4,padding:"4px 0"}}>← Назад</button>
+      </div>
+      <div style={{padding:"10px 16px 0"}}>
+        <div style={{background:C.card2,borderRadius:18,padding:"14px 16px",marginBottom:12,border:`0.5px solid ${C.border}`}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:6}}>
+            <div>
+              <div style={{fontSize:16,fontWeight:700,color:C.text}}>🌙 Сон</div>
+              <div style={{fontSize:11,color:color,fontWeight:600,marginTop:2}}>{scoreLabel(item.score)}</div>
+            </div>
+            <div style={{fontSize:36,fontWeight:700,color:color,lineHeight:1}}>{hasScore ? item.score : "—"}</div>
+          </div>
+        </div>
+
+        {(duration || deepSleep || remSleep || regularity) ? (
+          <div style={{display:"flex",flexDirection:"column",gap:8}}>
+            {duration && (
+              <div style={{background:C.card2,borderRadius:12,padding:"10px 14px",border:`0.5px solid ${C.border}`,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                <div style={{fontSize:12,color:C.text3}}>Длительность</div>
+                <div style={{fontSize:14,fontWeight:700,color:C.text2}}>{duration}</div>
+              </div>
+            )}
+            {deepSleep && (
+              <div style={{background:C.card2,borderRadius:12,padding:"10px 14px",border:`0.5px solid ${C.border}`,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                <div style={{fontSize:12,color:C.text3}}>Глубокий сон</div>
+                <div style={{fontSize:14,fontWeight:700,color:C.text2}}>{deepSleep}</div>
+              </div>
+            )}
+            {remSleep && (
+              <div style={{background:C.card2,borderRadius:12,padding:"10px 14px",border:`0.5px solid ${C.border}`,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                <div style={{fontSize:12,color:C.text3}}>REM фаза</div>
+                <div style={{fontSize:14,fontWeight:700,color:C.text2}}>{remSleep}</div>
+              </div>
+            )}
+            {regularity && (
+              <div style={{background:C.card2,borderRadius:12,padding:"10px 14px",border:`0.5px solid ${C.border}`,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                <div style={{fontSize:12,color:C.text3}}>Регулярность</div>
+                <div style={{fontSize:14,fontWeight:700,color:C.text2}}>{regularity}</div>
+              </div>
+            )}
+          </div>
+        ) : null}
+
+        {insights.length > 0 && (
+          <div style={{marginTop:12}}>
+            {insights.map((ins,i)=>(
+              <div key={i} style={{background:"#0a1515",borderRadius:12,padding:"10px 14px",borderLeft:`2px solid ${C.teal}`,marginBottom:8,fontSize:12,color:C.text3,lineHeight:1.5}}>💡 {ins}</div>
+            ))}
+          </div>
+        )}
+
+        {!hasScore && !duration && (
+          <div style={{background:C.card2,borderRadius:14,padding:"20px 16px",textAlign:"center",border:`0.5px solid ${C.border}`,marginTop:8}}>
+            <div style={{fontSize:24,marginBottom:8}}>🌙</div>
+            <div style={{fontSize:13,color:C.text3}}>Нет данных — скоро появится</div>
+            <div style={{fontSize:11,color:C.text4,marginTop:4}}>Данные о сне появятся после подключения трекера</div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function NutritionDetail({item, onBack}) {
+  const hasScore = item.score !== null && item.score !== undefined;
+  const color = scoreColor(item.score);
+  const details = item.details || {};
+  const calories = details.calories;
+  const protein = details.protein;
+  const fat = details.fat;
+  const carbs = details.carbs;
+  const meals = details.meals || [];
+  const insights = details.insights || [];
+
+  return (
+    <div style={{flex:1,overflowY:"auto",paddingBottom:80}} className="fade-up">
+      <div style={{padding:"10px 16px 0"}}>
+        <button onClick={onBack} style={{background:"none",border:"none",color:C.text4,fontSize:14,cursor:"pointer",display:"flex",alignItems:"center",gap:4,padding:"4px 0"}}>← Назад</button>
+      </div>
+      <div style={{padding:"10px 16px 0"}}>
+        <div style={{background:C.card2,borderRadius:18,padding:"14px 16px",marginBottom:12,border:`0.5px solid ${C.border}`}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:6}}>
+            <div>
+              <div style={{fontSize:16,fontWeight:700,color:C.text}}>🍎 Питание</div>
+              <div style={{fontSize:11,color:color,fontWeight:600,marginTop:2}}>{scoreLabel(item.score)}</div>
+            </div>
+            <div style={{fontSize:36,fontWeight:700,color:color,lineHeight:1}}>{hasScore ? item.score : "—"}</div>
+          </div>
+        </div>
+
+        {(calories || protein || fat || carbs) ? (
+          <>
+            <div style={{fontSize:10,color:C.text4,letterSpacing:"0.6px",fontWeight:600,marginBottom:8}}>МАКРОНУТРИЕНТЫ СЕГОДНЯ</div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:12}}>
+              {calories && (
+                <div style={{background:C.card2,borderRadius:12,padding:"10px 12px",border:`0.5px solid ${C.border}`,textAlign:"center"}}>
+                  <div style={{fontSize:10,color:C.text4}}>Калории</div>
+                  <div style={{fontSize:18,fontWeight:700,color:C.teal,marginTop:2}}>{calories}</div>
+                </div>
+              )}
+              {protein && (
+                <div style={{background:C.card2,borderRadius:12,padding:"10px 12px",border:`0.5px solid ${C.border}`,textAlign:"center"}}>
+                  <div style={{fontSize:10,color:C.text4}}>Белки</div>
+                  <div style={{fontSize:18,fontWeight:700,color:C.text2,marginTop:2}}>{protein}г</div>
+                </div>
+              )}
+              {fat && (
+                <div style={{background:C.card2,borderRadius:12,padding:"10px 12px",border:`0.5px solid ${C.border}`,textAlign:"center"}}>
+                  <div style={{fontSize:10,color:C.text4}}>Жиры</div>
+                  <div style={{fontSize:18,fontWeight:700,color:C.text2,marginTop:2}}>{fat}г</div>
+                </div>
+              )}
+              {carbs && (
+                <div style={{background:C.card2,borderRadius:12,padding:"10px 12px",border:`0.5px solid ${C.border}`,textAlign:"center"}}>
+                  <div style={{fontSize:10,color:C.text4}}>Углеводы</div>
+                  <div style={{fontSize:18,fontWeight:700,color:C.text2,marginTop:2}}>{carbs}г</div>
+                </div>
+              )}
+            </div>
+          </>
+        ) : null}
+
+        {meals.length > 0 ? (
+          <>
+            <div style={{fontSize:10,color:C.text4,letterSpacing:"0.6px",fontWeight:600,marginBottom:8}}>ПРИЁМЫ ПИЩИ</div>
+            {meals.map((m,i)=>(
+              <div key={i} style={{background:C.card2,borderRadius:12,padding:"10px 14px",marginBottom:6,border:`0.5px solid ${C.border}`}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                  <div style={{fontSize:12,fontWeight:600,color:C.text2}}>{m.name || m.type}</div>
+                  <div style={{fontSize:11,color:C.text4}}>{m.calories ? m.calories + " ккал" : ""}</div>
+                </div>
+                {m.description && <div style={{fontSize:11,color:C.text3,marginTop:3}}>{m.description}</div>}
+              </div>
+            ))}
+          </>
+        ) : null}
+
+        {insights.length > 0 && (
+          <div style={{marginTop:12}}>
+            {insights.map((ins,i)=>(
+              <div key={i} style={{background:"#0a1515",borderRadius:12,padding:"10px 14px",borderLeft:`2px solid ${C.teal}`,marginBottom:8,fontSize:12,color:C.text3,lineHeight:1.5}}>💡 {ins}</div>
+            ))}
+          </div>
+        )}
+
+        {!hasScore && !calories && meals.length === 0 && (
+          <div style={{background:C.card2,borderRadius:14,padding:"20px 16px",textAlign:"center",border:`0.5px solid ${C.border}`,marginTop:8}}>
+            <div style={{fontSize:24,marginBottom:8}}>🍎</div>
+            <div style={{fontSize:13,color:C.text3}}>Загрузи фото еды в чат</div>
+            <div style={{fontSize:11,color:C.text4,marginTop:4}}>Отправь фото завтрака, обеда или ужина — я посчитаю калории и нутриенты</div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function HealthTab() {
   const [selected, setSelected] = React.useState(null);
+  const [lifestyleSelected, setLifestyleSelected] = React.useState(null);
   const scoring = useScoringData();
 
   const systems = scoring && scoring.systems ? scoring.systems : DEFAULT_SYSTEMS;
@@ -323,6 +575,11 @@ function HealthTab() {
   const insights = scoring && scoring.insights ? scoring.insights : [];
 
   if (selected) return <OrganDetail sys={selected} onBack={()=>setSelected(null)}/>;
+  if (lifestyleSelected) {
+    if (lifestyleSelected.key === 'activity') return <ActivityDetail item={lifestyleSelected} onBack={()=>setLifestyleSelected(null)}/>;
+    if (lifestyleSelected.key === 'sleep') return <SleepDetail item={lifestyleSelected} onBack={()=>setLifestyleSelected(null)}/>;
+    if (lifestyleSelected.key === 'nutrition') return <NutritionDetail item={lifestyleSelected} onBack={()=>setLifestyleSelected(null)}/>;
+  }
 
   return (
     <div style={{flex:1,overflowY:"auto",paddingBottom:80}}>
@@ -337,7 +594,7 @@ function HealthTab() {
         {/* Lifestyle */}
         <div style={{fontSize:10,color:C.text4,letterSpacing:"0.6px",fontWeight:600,marginBottom:10,marginTop:16}}>ОБРАЗ ЖИЗНИ</div>
         {lifestyle.map((item,i)=>(
-          <LifestyleRow key={item.key} item={item} delay={i*0.05}/>
+          <LifestyleRow key={item.key} item={item} onClick={setLifestyleSelected} delay={i*0.05}/>
         ))}
 
         {/* Insights */}
@@ -354,7 +611,7 @@ function HealthTab() {
           </div>
         )}
 
-        <div style={{fontSize:10,color:C.text5,textAlign:"center",marginTop:10}}>Нажми на систему для деталей →</div>
+        <div style={{fontSize:10,color:C.text5,textAlign:"center",marginTop:10}}>Нажми на раздел для деталей →</div>
       </div>
     </div>
   );
@@ -435,17 +692,28 @@ function ChatTab() {
         fd.append("action","sendMessage");
         fd.append("sessionId",SESSION_ID);
         fd.append("chatInput",savedTxt||"Проанализируй этот файл");
-        fd.append("files",savedFile);
-        res=await fetch(WEBHOOK,{method:"POST",body:fd});
+        // Normalize file for mobile compatibility (iPhone HEIC/JPEG handling)
+        let fileToSend = savedFile;
+        if (savedFile.type === '' || savedFile.type === 'application/octet-stream') {
+          // Mobile sometimes doesn't set MIME type correctly
+          const ext = savedFile.name.split('.').pop().toLowerCase();
+          const mimeMap = {jpg:'image/jpeg',jpeg:'image/jpeg',png:'image/png',heic:'image/heic',pdf:'application/pdf',heif:'image/heif'};
+          const mime = mimeMap[ext] || 'application/octet-stream';
+          fileToSend = new File([savedFile], savedFile.name, {type: mime});
+        }
+        fd.append("files", fileToSend);
+        res = await fetch(WEBHOOK, {method:"POST", body:fd});
       } else {
-        res=await fetch(WEBHOOK,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"sendMessage",sessionId:SESSION_ID,chatInput:savedTxt})});
+        res = await fetch(WEBHOOK, {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({action:"sendMessage",sessionId:SESSION_ID,chatInput:savedTxt})});
       }
-      const data=await res.json();
-      const raw = data.output||data.text||"Получил ✅";
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const data = await res.json();
+      const raw = data.output || data.text || "Получил ✅";
       const clean = raw.replace(/^=+/,'').trim();
       setMsgs(p=>[...p,{role:"assistant",content:clean}]);
     } catch(e) {
-      setMsgs(p=>[...p,{role:"assistant",content:"Упс, что-то пошло не так 🙏"}]);
+      console.error('Chat error:', e);
+      setMsgs(p=>[...p,{role:"assistant",content:"Упс, что-то пошло не так. Попробуй ещё раз 🙏"}]);
     }
     setLoading(false);
   };
@@ -485,7 +753,7 @@ function ChatTab() {
           background:"transparent",color:C.text4,fontSize:18,cursor:"pointer",
           display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,
         }}>📎</button>
-        <input type="file" ref={fileRef} onChange={e=>setFile(e.target.files[0])} style={{display:"none"}} accept="image/*,.pdf"/>
+        <input type="file" ref={fileRef} onChange={e=>{if(e.target.files[0])setFile(e.target.files[0]);e.target.value='';}} style={{display:"none"}} accept="image/*,.pdf,application/pdf"/>
         <div style={{flex:1,background:C.card2,borderRadius:20,border:`0.5px solid ${C.border}`,padding:"10px 14px",display:"flex",alignItems:"flex-end"}}>
           <textarea
             ref={textRef}
@@ -512,12 +780,12 @@ function ChatTab() {
 
 function ProfileTab() {
   const fields=[
-    {icon:"🎂",label:"Возраст",val:"27"},
-    {icon:"📏",label:"Рост",val:"173"},
-    {icon:"⚖️",label:"Вес",val:"62"},
-    {icon:"🏃",label:"Уровень активности",val:"Высокий"},
-    {icon:"🔥",label:"Норма калорий",val:"1800"},
-    {icon:"⌚",label:"Носимое устройство",val:"Нет"},
+    {icon:"🎂",label:"Возраст",val:"—"},
+    {icon:"📏",label:"Рост",val:"—"},
+    {icon:"⚖️",label:"Вес",val:"—"},
+    {icon:"🏃",label:"Уровень активности",val:"—"},
+    {icon:"🔥",label:"Норма калорий",val:"—"},
+    {icon:"⌚",label:"Носимое устройство",val:"—"},
   ];
   return (
     <div style={{flex:1,overflowY:"auto",padding:"16px 16px 80px"}} className="fade-up">
@@ -530,7 +798,7 @@ function ProfileTab() {
           background:"rgba(0,0,0,0.2)",margin:"0 auto 10px",
           display:"flex",alignItems:"center",justifyContent:"center",fontSize:28,
         }}>👤</div>
-        <div style={{fontSize:18,fontWeight:700,color:"#fff"}}>Юлия</div>
+        <div style={{fontSize:18,fontWeight:700,color:"#fff"}}>Пользователь</div>
         <div style={{fontSize:11,color:"rgba(255,255,255,0.7)",marginTop:3}}>Участник Vespra</div>
       </div>
       {fields.map(f=>(
