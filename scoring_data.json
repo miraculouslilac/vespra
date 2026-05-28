@@ -234,10 +234,10 @@
       "score": 65,
       "icon": "ti-apple",
       "details": {
-        "calories": 1550,
-        "protein": 45,
-        "fat": 45,
-        "carbs": 135,
+        "calories": 2250,
+        "protein": 75,
+        "fat": 80,
+        "carbs": 215,
         "meals": [
           {
             "name": "Завтрак",
@@ -265,10 +265,19 @@
             "protein": 15,
             "fat": 15,
             "carbs": 45
+          },
+          {
+            "name": "Обед",
+            "type": "lunch",
+            "description": "Паста карбонара с пармезаном и капучино",
+            "calories": 700,
+            "protein": 30,
+            "fat": 35,
+            "carbs": 80
           }
         ],
         "insights": [
-          "Данные о питании обновлены на основе анализа"
+          "Высокое содержание жиров и углеводов"
         ]
       }
     }
