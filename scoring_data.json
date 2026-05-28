@@ -234,10 +234,10 @@
       "score": 65,
       "icon": "ti-apple",
       "details": {
-        "calories": 1050,
-        "protein": 30,
-        "fat": 30,
-        "carbs": 90,
+        "calories": 1550,
+        "protein": 45,
+        "fat": 45,
+        "carbs": 135,
         "meals": [
           {
             "name": "Завтрак",
@@ -253,6 +253,15 @@
             "type": "lunch",
             "description": "Борщ с хлебом и котлета с картошкой — это сытный и классический обед. Такой обед содержит в себе ком",
             "calories": 650,
+            "protein": 15,
+            "fat": 15,
+            "carbs": 45
+          },
+          {
+            "name": "Ужин",
+            "type": "dinner",
+            "description": "Ты съела салат Цезарь с курицей и выпила стакан кефира. Это примерно:",
+            "calories": 500,
             "protein": 15,
             "fat": 15,
             "carbs": 45
