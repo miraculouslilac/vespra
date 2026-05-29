@@ -335,9 +335,9 @@ function ActivityDetail({item, onBack}) {
   const hasScore = item.score !== null && item.score !== undefined;
   const color = scoreColor(item.score);
   const details = item.details || {};
-  const steps = details.steps;
-  const workouts = details.workouts || [];
-  const insights = details.insights || [];
+  const steps = item.steps !== undefined ? item.steps : details.steps;
+  const workouts = item.workouts || details.workouts || [];
+  const insights = item.insights || details.insights || [];
 
   return (
     <div style={{flex:1,overflowY:"auto",paddingBottom:80}} className="fade-up">
@@ -399,11 +399,11 @@ function SleepDetail({item, onBack}) {
   const hasScore = item.score !== null && item.score !== undefined;
   const color = scoreColor(item.score);
   const details = item.details || {};
-  const duration = details.duration;
-  const deepSleep = details.deepSleep;
-  const remSleep = details.remSleep;
-  const regularity = details.regularity;
-  const insights = details.insights || [];
+  const duration = item.duration || details.duration;
+  const deepSleep = item.deep || item.deepSleep || details.deepSleep;
+  const remSleep = item.rem || item.remSleep || details.remSleep;
+  const regularity = item.regularity || details.regularity;
+  const insights = item.insights || details.insights || [];
 
   return (
     <div style={{flex:1,overflowY:"auto",paddingBottom:80}} className="fade-up">
@@ -474,12 +474,12 @@ function NutritionDetail({item, onBack}) {
   const hasScore = item.score !== null && item.score !== undefined;
   const color = scoreColor(item.score);
   const details = item.details || {};
-  const calories = details.calories;
-  const protein = details.protein;
-  const fat = details.fat;
-  const carbs = details.carbs;
-  const meals = details.meals || [];
-  const insights = details.insights || [];
+  const calories = item.calories || details.calories;
+  const protein = item.protein || details.protein;
+  const fat = item.fat || details.fat;
+  const carbs = item.carbs || details.carbs;
+  const meals = item.meals || details.meals || [];
+  const insights = item.insights || details.insights || [];
 
   return (
     <div style={{flex:1,overflowY:"auto",paddingBottom:80}} className="fade-up">
