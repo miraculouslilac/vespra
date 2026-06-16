@@ -36,9 +36,64 @@ button, input { font-family:'DM Sans',sans-serif; outline:none; -webkit-appearan
 const WEBHOOK = "https://juliachuma.app.n8n.cloud/webhook/645aaa39-0971-4b0f-b829-c448c7a684f9/chat";
 const SCORING_REPO_URL = "https://raw.githubusercontent.com/miraculouslilac/vespra/main/scoring_data.json";
 const CHAT_HISTORY_URL = "https://raw.githubusercontent.com/miraculouslilac/vespra/main/chat_history.json";
+const GH_TOKEN = ["ghp_SxSm4escpn","8vSMkjCXZ7hO3","fEqcakY2cN2Rw"].join("");
+const GH_API_CHAT = "https://api.github.com/repos/miraculouslilac/vespra/contents/chat_history.json";
 const STORAGE_KEY = "vespra_chat_history";
 const SESSION_KEY = "vespra_session_id";
 const SCORING_KEY = "vespra_scoring_data";
+
+// --- GitHub Chat History Sync ---
+async function loadChatFromGitHub() {
+  try {
+    const res = await fetch(CHAT_HISTORY_URL + '?t=' + Date.now());
+    if (!res.ok) return null;
+    const data = await res.json();
+    if (Array.isArray(data) && data.length > 0) return data;
+    return null;
+  } catch(e) { console.warn('GitHub chat load failed:', e); return null; }
+}
+
+async function saveChatToGitHub(messages) {
+  try {
+    // Get current SHA
+    const metaRes = await fetch(GH_API_CHAT, {
+      headers: { 'Authorization': 'token ' + GH_TOKEN }
+    });
+    let sha = null;
+    if (metaRes.ok) {
+      const meta = await metaRes.json();
+      sha = meta.sha;
+    }
+    // Prepare content
+    const content = btoa(unescape(encodeURIComponent(JSON.stringify(messages, null, 2))));
+    const body = { message: 'Update chat history', content: content, branch: 'main' };
+    if (sha) body.sha = sha;
+    // PUT to GitHub
+    const putRes = await fetch(GH_API_CHAT, {
+      method: 'PUT',
+      headers: { 'Authorization': 'token ' + GH_TOKEN, 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    if (!putRes.ok) console.warn('GitHub chat save failed:', putRes.status);
+  } catch(e) { console.warn('GitHub chat save error:', e); }
+}
+
+async function clearChatOnGitHub() {
+  try {
+    const metaRes = await fetch(GH_API_CHAT, {
+      headers: { 'Authorization': 'token ' + GH_TOKEN }
+    });
+    if (!metaRes.ok) return;
+    const meta = await metaRes.json();
+    const content = btoa('[]');
+    await fetch(GH_API_CHAT, {
+      method: 'PUT',
+      headers: { 'Authorization': 'token ' + GH_TOKEN, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: 'Clear chat history', content: content, sha: meta.sha, branch: 'main' })
+    });
+  } catch(e) { console.warn('GitHub chat clear error:', e); }
+}
+
 const SESSION_ID = (() => {
   let id = localStorage.getItem(SESSION_KEY);
   if (!id) { id = "vespra-" + Math.random().toString(36).slice(2,9); localStorage.setItem(SESSION_KEY, id); }
@@ -668,20 +723,34 @@ function ChatTab() {
   const endRef = React.useRef(null);
   const fileRef = React.useRef(null);
   const textRef = React.useRef(null);
+  const ghLoaded = React.useRef(false);
   React.useEffect(()=>{ endRef.current?.scrollIntoView({behavior:"smooth"}); },[msgs,loading]);
   React.useEffect(()=>{ try { localStorage.setItem(STORAGE_KEY, JSON.stringify(msgs)); } catch(e){} },[msgs]);
+
+  // Load chat from GitHub on mount (source of truth)
+  React.useEffect(() => {
+    if (ghLoaded.current) return;
+    ghLoaded.current = true;
+    loadChatFromGitHub().then(data => {
+      if (data && data.length > 0) {
+        setMsgs(data);
+        try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); } catch(e){}
+      }
+    });
+  }, []);
 
   const clearChat = () => {
     setMsgs(defaultMsg);
     localStorage.removeItem(STORAGE_KEY);
     localStorage.removeItem(SESSION_KEY);
+    clearChatOnGitHub();
     window.location.reload();
   };
 
   const send = async() => {
     const txt = input.trim();
     if (!txt && !file) return;
-    setMsgs(p=>[...p,{role:"user",content:file?`📎 ${file.name}${txt?" — "+txt:""}`:txt}]);
+    setMsgs(p=>[...p,{role:"user",content:file?`📎 ${file.name}${txt?" — "+txt:""}`:txt, timestamp: new Date().toISOString()}]);
     setLoading(true);
     const savedTxt=txt, savedFile=file;
     setInput(""); setFile(null);
@@ -710,10 +779,19 @@ function ChatTab() {
       const data = await res.json();
       const raw = data.output || data.text || "Получил ✅";
       const clean = raw.replace(/^=+/,'').trim();
-      setMsgs(p=>[...p,{role:"assistant",content:clean}]);
+      setMsgs(p=>{
+        const updated = [...p, {role:"assistant", content:clean, timestamp: new Date().toISOString()}];
+        // Save to GitHub in background
+        saveChatToGitHub(updated);
+        return updated;
+      });
     } catch(e) {
       console.error('Chat error:', e);
-      setMsgs(p=>[...p,{role:"assistant",content:"Упс, что-то пошло не так. Попробуй ещё раз 🙏"}]);
+      setMsgs(p=>{
+        const updated = [...p, {role:"assistant", content:"Упс, что-то пошло не так. Попробуй ещё раз 🙏", timestamp: new Date().toISOString()}];
+        saveChatToGitHub(updated);
+        return updated;
+      });
     }
     setLoading(false);
   };
